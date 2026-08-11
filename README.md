@@ -250,6 +250,25 @@ Every prompt sent to `/api/agent/chat` flows through a LangGraph `StateGraph`:
 
 ---
 
+## 📚 Concepts Explored While Building This
+
+This project was built as a deep, hands-on exercise in production-style AI systems. The current codebase in this repo implements the microservices, LangGraph routing, and file-generation agents described above. Beyond that, the build process also involved deliberately exploring the following concepts — some fully wired in, others prototyped or planned as the project evolves:
+
+- **Retrieval-Augmented Generation (RAG)** — grounding LLM responses in uploaded documents rather than model memory alone
+- **Qdrant vector database** — storing and querying document embeddings for semantic retrieval
+- **PDF RAG agent** — answering questions over uploaded PDFs via retrieval + generation
+- **Image-to-text agent** — extracting and reasoning over content from uploaded images
+- **Docker containerization** — packaging services as containers for consistent local and cloud environments (currently applied to Redis; extending to all services is on the roadmap)
+- **AWS deployment** — cloud hosting strategy for the gateway, services, and S3-backed file storage
+- **Rate limiting with Redis** — protecting agent endpoints from abuse using Redis-backed request throttling
+- **Billing & credits system (Razorpay)** — metering AI usage per user and integrating a payment gateway for credit top-ups
+- **Streaming AI responses** — delivering LLM output token-by-token for a faster perceived response time
+- **AI tool calling** — letting LLMs invoke structured tools/functions as part of an agent's reasoning loop
+
+> These points reflect the broader system-design and AI-engineering scope this project was built to practice, not a claim that every item is live in this exact snapshot of the repo. See the Roadmap below for what's planned next.
+
+---
+
 ## 🗺️ Roadmap
 
 - [ ] Add automated tests across services
@@ -257,6 +276,12 @@ Every prompt sent to `/api/agent/chat` flows through a LangGraph `StateGraph`:
 - [ ] Add per-agent usage analytics
 - [ ] Support additional file export formats
 - [ ] Containerize all services (not just Redis) for one-command local setup
+- [ ] Add a RAG agent backed by Qdrant for document Q&A
+- [ ] Add an image-to-text agent for reasoning over uploaded images
+- [ ] Add Redis-backed rate limiting on agent endpoints
+- [ ] Add a billing/credits system with Razorpay integration
+- [ ] Deploy the full stack to AWS
+- [ ] Add streaming AI responses
 
 ---
 
