@@ -2,6 +2,7 @@ import { getModel } from "../config/llmModels.js";
 import axios from "axios";
 import { uploadToS3 } from "../utils/uploadToS3.js";
 import { getFromS3 } from "../utils/getFromS3.js";
+import { deductCredits } from "../utils/deductCredits.js";
 
 export const visionAgent = async (state) => {
   try {
@@ -54,6 +55,8 @@ ${state.prompt}
       timeout: 120000,
       validateStatus: (status) => status >= 200 && status < 300,
     });
+
+    await deductCredits(state.userId,"vision")
 
     const buffer = Buffer.from(imageRes.data);
     const filename = `${Date.now()}.png`;

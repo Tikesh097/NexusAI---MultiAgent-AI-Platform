@@ -19,6 +19,7 @@ import {
 import { createConversation } from "../features/createConversation";
 import logOut from "../features/logOut";
 import { setUserData } from "../redux/userSlice";
+import BillingDrawer from "./BillingDrawer";
 
 function SideBar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -31,6 +32,7 @@ function SideBar() {
   );
 
   const { userData } = useSelector((state) => state.user);
+  const [showBilling, setShowBilling] = useState(false)
 
   useEffect(() => {
     const getConv = async () => {
@@ -75,6 +77,12 @@ function SideBar() {
       console.error("Logout failed:", error);
     }
   };
+
+  const getPlanName = (plan) => {
+  if (!plan) return "Free";
+
+  return plan.charAt(0).toUpperCase() + plan.slice(1);
+};
 
   return (
     <div
@@ -142,7 +150,7 @@ function SideBar() {
               </span>
 
               <span className="text-[10px] font-medium text-slate-400 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-full tracking-wide transition-colors duration-200 hover:border-[#8B7CFF]/40 hover:text-slate-300">
-                Free
+                 {getPlanName(userData?.plan)}
               </span>
 
               <button
@@ -322,12 +330,13 @@ function SideBar() {
                     </p>
 
                     <p className="text-[11px] text-slate-500 mt-px">
-                      Free Plan
+                      {getPlanName(userData?.plan)} Plan
                     </p>
                   </div>
 
                   <div className="flex gap-1">
                     <button
+                    onClick={()=>setShowBilling(true)}
                       type="button"
                       className="flex items-center justify-center w-7 h-7 rounded-[7px] border-none bg-transparent text-amber-500/80 cursor-pointer hover:bg-amber-400/10 hover:text-amber-400 transition-all duration-200 hover:scale-105 active:scale-95"
                     >
@@ -371,6 +380,10 @@ function SideBar() {
           )}
         </div>
       </div>
+      <BillingDrawer
+      open={showBilling}
+      onClose={()=>setShowBilling(false)}
+      />
     </div>
   );
 }

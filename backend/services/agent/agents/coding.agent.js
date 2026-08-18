@@ -1,4 +1,5 @@
 import { getModel } from "../config/llmModels.js";
+import { deductCredits } from "../utils/deductCredits.js";
 
 const VALID_INTENTS = [
   "CODE_GENERATION",
@@ -471,6 +472,8 @@ ${userPrompt}
           userPrompt,
         );
 
+      await deductCredits(state.userId,"coding")  
+
       return {
         ...state,
 
@@ -551,6 +554,7 @@ ORIGINAL USER REQUEST:
 ${userPrompt}
 `);
 
+await deductCredits(state.userId,"coding")
     return {
       ...state,
 

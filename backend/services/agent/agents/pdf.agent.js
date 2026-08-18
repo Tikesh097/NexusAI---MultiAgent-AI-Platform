@@ -2,6 +2,7 @@ import { getModel } from "../config/llmModels.js";
 import generatePdf from "../utils/generatePdf.js";
 import { uploadToS3 } from "../utils/uploadToS3.js";
 import { getFromS3 } from "../utils/getFromS3.js";
+import { deductCredits } from "../utils/deductCredits.js";
 
 export const pdfAgent = async (state) => {
   try {
@@ -50,6 +51,7 @@ ${state.prompt}
 
     // Convert LLM response into an object
     const pdfData = JSON.parse(rawContent);
+    await deductCredits(state.userId,"pdf")
 
     console.log("📄 PDF Agent Result:", pdfData);
 

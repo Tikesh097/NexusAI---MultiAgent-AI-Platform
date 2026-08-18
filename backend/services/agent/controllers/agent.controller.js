@@ -5,7 +5,7 @@ import { addMessage } from "../config/memory.js";
 export const agent = async (req, res) => {
   try {
     const { prompt, conversationId, agent } = req.body;
-
+    const userId = req.headers["x-user-id"];
     // --------------------------------------------------
     // Validate request
     // --------------------------------------------------
@@ -42,20 +42,16 @@ export const agent = async (req, res) => {
       prompt,
       conversationId,
       agent,
+      userId,
     });
-console.log("🧠 GRAPH RESULT:", JSON.stringify(result, null, 2));
     // --------------------------------------------------
     // Extract response safely
     // --------------------------------------------------
     const aiResponse = result?.aiResponse || "";
 
-    const images = Array.isArray(result?.images)
-      ? result.images
-      : [];
+    const images = Array.isArray(result?.images) ? result.images : [];
 
-    const artifacts = Array.isArray(result?.artifacts)
-      ? result.artifacts
-      : [];
+    const artifacts = Array.isArray(result?.artifacts) ? result.artifacts : [];
 
     if (!aiResponse) {
       throw new Error("AI agent returned an empty response.");
@@ -64,19 +60,15 @@ console.log("🧠 GRAPH RESULT:", JSON.stringify(result, null, 2));
     // --------------------------------------------------
     // Save assistant response to memory
     // --------------------------------------------------
-    await addMessage(
-      conversationId,
-      "assistant",
-      aiResponse
-    );
+    await addMessage(conversationId, "assistant", aiResponse);
 
     console.log("📤 SAVING ASSISTANT MESSAGE:", {
-  conversationId,
-  role: "assistant",
-  content: aiResponse,
-  images,
-  artifacts,
-});
+      conversationId,
+      role: "assistant",
+      content: aiResponse,
+      images,
+      artifacts,
+    });
 
     // --------------------------------------------------
     // Save assistant response to chat service
@@ -99,17 +91,11 @@ console.log("🧠 GRAPH RESULT:", JSON.stringify(result, null, 2));
       artifacts,
     });
   } catch (error) {
-    console.error(
-      "❌ Agent Error:",
-      error.response?.data || error.message
-    );
+    console.error("❌ Agent Error:", error.response?.data || error.message);
 
     return res.status(500).json({
       success: false,
-      message:
-        error.response?.data?.message ||
-        error.message ||
-        "Agent Error",
+      message: error.response?.data?.message || error.message || "Agent Error",
       answer: "",
       images: [],
       artifacts: [],

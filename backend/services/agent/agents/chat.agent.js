@@ -6,6 +6,7 @@ import {
 
 import { getModel } from "../config/llmModels.js";
 import { getMemory } from "../config/memory.js";
+import { deductCredits } from "../utils/deductCredits.js";
 
 export const chatAgent = async (state) => {
   try {
@@ -74,15 +75,14 @@ Markdown formatting:
 
     console.log(hasSearchResults ? state.searchResults : "No search results");
 
-  
-
     // Generate final response
     const response = await llm.invoke(messages);
-
     const aiResponse =
       typeof response.content === "string"
         ? response.content
         : JSON.stringify(response.content);
+
+    await deductCredits(state.userId, "chat");
 
     return {
       ...state,

@@ -1,4 +1,5 @@
 import { searchTool } from "../config/tavily.js";
+import { deductCredits } from "../utils/deductCredits.js";
 
 const isCurrentTimeQuery = (prompt = "") => {
   return /current\s+time|what\s+time\s+is\s+it|time\s+now|time\s+in\s+india|india\s+time|ist\s+time/i.test(
@@ -87,6 +88,7 @@ export const searchAgent = async (state) => {
     const limitedImages = (tavilyResponse?.images || []).slice(0, 5);
 
     console.log("Tavily results found:", limitedResults.length);
+    await deductCredits(state.userId,"search")
 
     return {
       ...state,
