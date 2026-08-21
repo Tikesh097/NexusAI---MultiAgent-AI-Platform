@@ -5,6 +5,7 @@ import { addMessage } from "../config/memory.js";
 export const agent = async (req, res) => {
   try {
     const { prompt, conversationId, agent } = req.body;
+    const file = req.file
     const userId = req.headers["x-user-id"];
     // --------------------------------------------------
     // Validate request
@@ -43,6 +44,7 @@ export const agent = async (req, res) => {
       conversationId,
       agent,
       userId,
+      file
     });
     // --------------------------------------------------
     // Extract response safely

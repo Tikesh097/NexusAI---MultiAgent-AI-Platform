@@ -1,4 +1,5 @@
 import { getModel } from "../config/llmModels.js";
+import { agent } from "../controllers/agent.controller.js";
 
 export const router = async (state) => {
   // If user explicitly selected an agent, use it directly.
@@ -6,6 +7,20 @@ export const router = async (state) => {
     return {
       ...state,
       agent: state.agent,
+    };
+  }
+
+  if (state.file.mimetype === "application/pdf") {
+    return {
+      ...state,
+      agent: "pdfRag",
+    };
+  }
+
+  if (state.file.mimetype.startsWith("image/")) {
+    return {
+      ...state,
+      agent: "imageAnalyzer",
     };
   }
 
@@ -141,24 +156,14 @@ ${state.prompt}
     .toLowerCase();
 
   // Remove accidental markdown/code formatting
-  selectedAgent = selectedAgent
-    .replace(/```/g, "")
-    .replace(/["']/g, "")
-    .trim();
+  selectedAgent = selectedAgent.replace(/```/g, "").replace(/["']/g, "").trim();
 
   // Validate router output
-  const validAgents = [
-    "chat",
-    "search",
-    "coding",
-    "pdf",
-    "ppt",
-    "vision",
-  ];
+  const validAgents = ["chat", "search", "coding", "pdf", "ppt", "vision"];
 
   if (!validAgents.includes(selectedAgent)) {
     console.warn(
-      `⚠️ Router returned invalid agent: "${selectedAgent}". Falling back to chat.`
+      `⚠️ Router returned invalid agent: "${selectedAgent}". Falling back to chat.`,
     );
 
     selectedAgent = "chat";
