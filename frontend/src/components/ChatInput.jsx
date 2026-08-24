@@ -21,7 +21,7 @@ import {
   setConvTitle,
   setSelectedConversation,
 } from "../redux/conversationSlice";
-import { addMessage, setArtifacts } from "../redux/messageSlice";
+import { addMessage, setArtifacts, setIsLoading, setloadingAgent } from "../redux/messageSlice.js";
 
 const MAX_TITLE_LENGTH = 40;
 
@@ -66,6 +66,8 @@ function ChatInput() {
     if (!prompt || isSending) return;
 
     setIsSending(true);
+    dispatch(setloadingAgent(selectedAgent));
+    dispatch(setIsLoading(true))
 
     try {
       let conversation = selectedConversation;
@@ -133,7 +135,7 @@ function ChatInput() {
       }
 
       const data = await sendMessage(formData);
-
+     
       // --------------------------------------------------
       // 5. IMPORTANT:
       // sendMessage can return null when backend returns
@@ -190,6 +192,7 @@ function ChatInput() {
       );
     } finally {
       setIsSending(false);
+       dispatch(setIsLoading(false))
     }
   }, [value, isSending, selectedConversation, selectedAgent, selectedFile, dispatch]);
 

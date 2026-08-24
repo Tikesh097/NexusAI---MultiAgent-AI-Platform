@@ -130,7 +130,7 @@ function BillingDrawer({ open, onClose }) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed right-0 top-0 z-50 h-screen w-[380px] border-l border-white/[0.08] shadow-2xl flex flex-col overflow-hidden"
+            className="fixed right-0 top-0 z-50 h-screen w-full sm:w-[380px] border-l border-white/[0.08] shadow-2xl flex flex-col overflow-hidden"
             style={{
               background: "radial-gradient(140% 100% at 100% 0%, #14151F 0%, #0A0B12 55%, #08090F 100%)",
             }}

@@ -6,6 +6,8 @@ const messageSlice = createSlice({
   initialState: {
     messages: [],
     artifacts: [],
+    isLoading:false,
+    loadingAgent:"chat"
   },
 
   reducers: {
@@ -19,6 +21,14 @@ const messageSlice = createSlice({
 
     setArtifacts: (state, action) => {
       state.artifacts = action.payload;
+    },
+
+     setIsLoading: (state, action) => {
+      state.isLoading = action.payload;
+    },
+
+    setloadingAgent: (state, action) => {
+      state.loadingAgent = action.payload;
     },
 
     clearMessages: (state) => {
@@ -40,6 +50,8 @@ export const {
   setMessages,
   addMessage,
   setArtifacts,
+  setIsLoading,
+  setloadingAgent,
   clearMessages,
   clearArtifacts,
   clearMessagesAndArtifacts,

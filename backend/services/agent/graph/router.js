@@ -10,7 +10,9 @@ export const router = async (state) => {
     };
   }
 
-  if (state.file.mimetype === "application/pdf") {
+   if(state.file){
+
+    if (state.file.mimetype === "application/pdf") {
     return {
       ...state,
       agent: "pdfRag",
@@ -23,6 +25,9 @@ export const router = async (state) => {
       agent: "imageAnalyzer",
     };
   }
+
+   }
+  
 
   const llm = await getModel("router");
 
@@ -168,11 +173,6 @@ ${state.prompt}
 
     selectedAgent = "chat";
   }
-
-  console.log("🧭 ROUTER DECISION:", {
-    prompt: state.prompt,
-    agent: selectedAgent,
-  });
 
   return {
     ...state,

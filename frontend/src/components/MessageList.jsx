@@ -1,12 +1,23 @@
-import React from 'react'
+import { useEffect, useRef } from 'react'
 import { Hexagon } from 'lucide-react'
 import { useSelector } from 'react-redux'
 import MessageBubble from './MessageBubble'
+import LoadingAnimation from './LoadingAnimation'
 
 function MessageList() {
 
   const { selectedConversation } = useSelector(state => state.conversation)
-  const { messages } = useSelector(state => state.message)
+  const { messages, isLoading, loadingAgent} = useSelector(state => state.message)
+  const bottomRef=useRef(null)
+
+  useEffect(()=>{
+   requestAnimationFrame(()=>{
+    bottomRef?.current?.scrollIntoView({
+      behavior:"smooth",
+      block:"end"
+    })
+   })
+  },[messages?.length,isLoading])
 
   return (
     <div className='min-h-0 flex-1 overflow-y-auto bg-transparent px-3 py-6 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
@@ -76,6 +87,8 @@ function MessageList() {
               <MessageBubble role={msg.role} content={msg.content} images={msg.images || []} />
             </div>
           ))}
+            {isLoading &&  <LoadingAnimation agent={loadingAgent} /> }
+            
 
           <style>{`
             @keyframes fadeInUp {
@@ -85,6 +98,7 @@ function MessageList() {
           `}</style>
         </div>
       }
+      <div ref={bottomRef}/>
     </div>
   )
 }
