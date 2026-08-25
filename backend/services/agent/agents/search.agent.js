@@ -1,3 +1,4 @@
+import { checkAgentLimit } from "../config/agentLimit.js";
 import { searchTool } from "../config/tavily.js";
 import { deductCredits } from "../utils/deductCredits.js";
 
@@ -33,12 +34,22 @@ const formatSearchResults = (results = []) => {
 
 export const searchAgent = async (state) => {
   try {
+    // --------------------------------------------------
+    // Check search rate limit
+    // --------------------------------------------------
+    await checkAgentLimit(
+      state.userId,
+      "search"
+    );
+
     const prompt = state.prompt?.trim() || "";
 
     console.log("Search agent invoked");
     console.log("Search prompt:", prompt);
 
-    // Prevent an empty search request
+    // --------------------------------------------------
+    // Prevent empty search request
+    // --------------------------------------------------
     if (!prompt) {
       return {
         ...state,
@@ -49,14 +60,20 @@ export const searchAgent = async (state) => {
           images: [],
         },
         images: [],
+        credits: state.credits,
       };
     }
 
+    // --------------------------------------------------
     // Handle live India time without Tavily
+    // --------------------------------------------------
     if (isCurrentTimeQuery(prompt)) {
       const currentTime = getIndiaTime();
 
-      console.log("Live India time generated:", currentTime);
+      console.log(
+        "Live India time generated:",
+        currentTime
+      );
 
       return {
         ...state,
@@ -70,50 +87,139 @@ export const searchAgent = async (state) => {
           images: [],
         },
         images: [],
+        // No credit deduction for local time
+        credits: state.credits,
       };
     }
 
+    // --------------------------------------------------
     // Use Tavily for normal web searches
-    const tavilyResponse = await searchTool.invoke({
-      query: prompt,
-    });
+    // --------------------------------------------------
+    const tavilyResponse =
+      await searchTool.invoke({
+        query: prompt,
+      });
 
-    // Keep only the top 3 results
-    // Keep only 1200 characters from each result
-    const limitedResults = formatSearchResults(
-      tavilyResponse?.results || []
+    // --------------------------------------------------
+    // Keep only top 3 results
+    // --------------------------------------------------
+    const limitedResults =
+      formatSearchResults(
+        tavilyResponse?.results || []
+      );
+
+    // --------------------------------------------------
+    // Keep only first 5 images
+    // --------------------------------------------------
+    const limitedImages = (
+      tavilyResponse?.images || []
+    ).slice(0, 5);
+
+    console.log(
+      "Tavily results found:",
+      limitedResults.length
     );
 
-    // Keep only the first 5 images
-    const limitedImages = (tavilyResponse?.images || []).slice(0, 5);
+    // --------------------------------------------------
+    // Deduct search credits after successful search
+    // --------------------------------------------------
+    const creditResult =
+      await deductCredits(
+        state.userId,
+        "search"
+      );
 
-    console.log("Tavily results found:", limitedResults.length);
-    await deductCredits(state.userId,"search")
+    if (!creditResult?.success) {
+      throw new Error(
+        creditResult?.message ||
+          "Credit deduction failed"
+      );
+    }
 
+    console.log(
+      "💳 SEARCH CREDITS REMAINING:",
+      creditResult.credits
+    );
+
+    // --------------------------------------------------
+    // Return search results + credits
+    // --------------------------------------------------
     return {
       ...state,
+
       searchResults: {
         type: "web-search",
         query: prompt,
-        answer: tavilyResponse?.answer || null,
+        answer:
+          tavilyResponse?.answer || null,
         results: limitedResults,
         images: limitedImages,
       },
+
       images: limitedImages,
+
+      credits:
+        creditResult.credits,
     };
   } catch (error) {
-    console.error("Search Agent Error:", error.message);
+    console.error(
+      "❌ Search Agent Error:",
+      error
+    );
 
+    // --------------------------------------------------
+    // Safely extract provider error
+    // --------------------------------------------------
+    const errorMessage =
+      error?.error?.error?.message ||
+      error?.error?.message ||
+      error?.message ||
+      "Something went wrong while searching.";
+
+    // --------------------------------------------------
+    // Rate limit
+    // --------------------------------------------------
+    if (error?.status === 429) {
+      console.warn(
+        "⚠️ SEARCH RATE LIMIT:",
+        errorMessage
+      );
+
+      return {
+        ...state,
+
+        searchResults: {
+          type: "error",
+          answer: `⚠️ ${errorMessage}`,
+          results: [],
+          images: [],
+        },
+
+        images: [],
+
+        // Preserve existing balance
+        credits: state.credits,
+      };
+    }
+
+    // --------------------------------------------------
+    // Other errors
+    // --------------------------------------------------
     return {
       ...state,
+
       searchResults: {
         type: "error",
-        answer: "Unable to search right now. Please try again.",
+        answer: `❌ ${errorMessage}`,
         results: [],
         images: [],
       },
+
       images: [],
+
+      credits: state.credits,
     };
   }
 };
 
+export default searchAgent;

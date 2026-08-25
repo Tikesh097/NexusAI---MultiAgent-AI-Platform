@@ -7,19 +7,36 @@ import {
 import { getModel } from "../config/llmModels.js";
 import { getMemory } from "../config/memory.js";
 import { deductCredits } from "../utils/deductCredits.js";
+import { checkAgentLimit } from "../config/agentLimit.js";
 
 export const chatAgent = async (state) => {
   try {
+    // --------------------------------------------------
+    // Check agent rate limit BEFORE calling the LLM
+    // --------------------------------------------------
+    await checkAgentLimit(state.userId, "chat");
+
+    // --------------------------------------------------
+    // Get chat model
+    // --------------------------------------------------
     const llm = getModel("chat");
 
+    // --------------------------------------------------
     // Load previous conversation history
-    const history = (await getMemory(state.conversationId)) || [];
+    // --------------------------------------------------
+    const history =
+      (await getMemory(state.conversationId)) || [];
 
+    // --------------------------------------------------
     // Check whether search results exist
+    // --------------------------------------------------
     const hasSearchResults =
-      state.searchResults && Object.keys(state.searchResults).length > 0;
+      state.searchResults &&
+      Object.keys(state.searchResults).length > 0;
 
+    // --------------------------------------------------
     // Create search context only for search requests
+    // --------------------------------------------------
     const searchContext = hasSearchResults
       ? `
 LIVE WEB SEARCH RESULTS:
@@ -35,6 +52,9 @@ Instructions:
 `
       : "";
 
+    // --------------------------------------------------
+    // System prompt
+    // --------------------------------------------------
     const systemPrompt = `
 You are NexusAI, an intelligent AI assistant.
 
@@ -57,45 +77,121 @@ Markdown formatting:
 - Never put a heading and its content on the same line.
 `;
 
-    const messages = [new SystemMessage(systemPrompt)];
+    // --------------------------------------------------
+    // Create messages
+    // --------------------------------------------------
+    const messages = [
+      new SystemMessage(systemPrompt),
+    ];
 
+    // --------------------------------------------------
     // Add previous conversation messages
+    // --------------------------------------------------
     history.forEach((msg) => {
       if (msg.role === "user") {
-        messages.push(new HumanMessage(msg.content));
+        messages.push(
+          new HumanMessage(msg.content)
+        );
       }
 
       if (msg.role === "assistant") {
-        messages.push(new AIMessage(msg.content));
+        messages.push(
+          new AIMessage(msg.content)
+        );
       }
     });
 
+    // --------------------------------------------------
     // Add current user prompt
-    messages.push(new HumanMessage(state.prompt));
+    // --------------------------------------------------
+    messages.push(
+      new HumanMessage(state.prompt)
+    );
 
-    console.log(hasSearchResults ? state.searchResults : "No search results");
+    console.log(
+      hasSearchResults
+        ? state.searchResults
+        : "No search results"
+    );
 
-    // Generate final response
+    // --------------------------------------------------
+    // Generate AI response
+    // --------------------------------------------------
     const response = await llm.invoke(messages);
-    const aiResponse =
-      typeof response.content === "string"
-        ? response.content
-        : JSON.stringify(response.content);
 
-    const creditResult = await deductCredits(state.userId, "chat");
+    const aiResponse =
+      typeof response?.content === "string"
+        ? response.content
+        : JSON.stringify(response?.content || "");
+
+    // --------------------------------------------------
+    // Deduct credits ONLY after successful AI response
+    // --------------------------------------------------
+    const creditResult = await deductCredits(
+      state.userId,
+      "chat"
+    );
 
     if (!creditResult?.success) {
-      throw new Error(creditResult?.message || "Credit deduction failed");
+      throw new Error(
+        creditResult?.message ||
+          "Credit deduction failed"
+      );
     }
 
+    console.log(
+      "💳 CHAT CREDITS REMAINING:",
+      creditResult.credits
+    );
+
+    // --------------------------------------------------
+    // Return response + remaining credits
+    // --------------------------------------------------
     return {
       ...state,
       aiResponse,
       credits: creditResult.credits,
     };
   } catch (error) {
-    console.error("Chat Agent Error:", error.message);
+    console.error("❌ Chat Agent Error:", error);
 
-    throw error;
+    // --------------------------------------------------
+    // Extract safe error message
+    // Handles:
+    // error.message
+    // error.error.message
+    // error.error.error.message
+    // --------------------------------------------------
+    const errorMessage =
+      error?.error?.error?.message ||
+      error?.error?.message ||
+      error?.message ||
+      "Something went wrong while processing your request.";
+
+    // --------------------------------------------------
+    // Rate-limit error
+    // --------------------------------------------------
+    if (error?.status === 429) {
+      console.warn(
+        "⚠️ CHAT RATE LIMIT:",
+        errorMessage
+      );
+
+      return {
+        ...state,
+        aiResponse: `⚠️ ${errorMessage}`,
+        // Keep existing credits unchanged.
+        credits: state.credits,
+      };
+    }
+
+    // --------------------------------------------------
+    // Credit / other error
+    // --------------------------------------------------
+    return {
+      ...state,
+      aiResponse: `❌ ${errorMessage}`,
+      credits: state.credits,
+    };
   }
 };
