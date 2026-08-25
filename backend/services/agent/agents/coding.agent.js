@@ -16,15 +16,10 @@ const VALID_INTENTS = [
  */
 const extractJson = (content) => {
   if (!content) {
-    throw new Error(
-      "The AI returned an empty response.",
-    );
+    throw new Error("The AI returned an empty response.");
   }
 
-  const rawContent =
-    typeof content === "string"
-      ? content
-      : String(content);
+  const rawContent = typeof content === "string" ? content : String(content);
 
   const cleanedContent = rawContent
     .trim()
@@ -33,73 +28,40 @@ const extractJson = (content) => {
     .replace(/\s*```$/i, "")
     .trim();
 
-  const startIndex =
-    cleanedContent.indexOf("{");
+  const startIndex = cleanedContent.indexOf("{");
 
-  const endIndex =
-    cleanedContent.lastIndexOf("}");
+  const endIndex = cleanedContent.lastIndexOf("}");
 
   if (startIndex === -1) {
-    console.error(
-      "\nAI RESPONSE DOES NOT CONTAIN JSON:\n",
-      rawContent,
-    );
+    console.error("\nAI RESPONSE DOES NOT CONTAIN JSON:\n", rawContent);
 
-    throw new Error(
-      "The AI response does not contain a JSON object.",
-    );
+    throw new Error("The AI response does not contain a JSON object.");
   }
 
-  if (
-    endIndex === -1 ||
-    endIndex < startIndex
-  ) {
-    console.error(
-      "\nAI RESPONSE WAS INCOMPLETE OR TRUNCATED.",
-    );
+  if (endIndex === -1 || endIndex < startIndex) {
+    console.error("\nAI RESPONSE WAS INCOMPLETE OR TRUNCATED.");
 
-    console.error(
-      "\nRESPONSE LENGTH:",
-      rawContent.length,
-    );
+    console.error("\nRESPONSE LENGTH:", rawContent.length);
 
-    console.error(
-      "\nLAST 2000 CHARACTERS:\n",
-      rawContent.slice(-2000),
-    );
+    console.error("\nLAST 2000 CHARACTERS:\n", rawContent.slice(-2000));
 
     throw new Error(
       "The AI response was incomplete. The generated project may be too large or the model stopped before finishing the JSON.",
     );
   }
 
-  const jsonString =
-    cleanedContent.slice(
-      startIndex,
-      endIndex + 1,
-    );
+  const jsonString = cleanedContent.slice(startIndex, endIndex + 1);
 
   try {
     return JSON.parse(jsonString);
   } catch (error) {
-    console.error(
-      "\nINVALID JSON ERROR:",
-      error.message,
-    );
+    console.error("\nINVALID JSON ERROR:", error.message);
 
-    console.error(
-      "\nJSON RESPONSE LENGTH:",
-      jsonString.length,
-    );
+    console.error("\nJSON RESPONSE LENGTH:", jsonString.length);
 
-    console.error(
-      "\nLAST 2000 CHARACTERS:\n",
-      jsonString.slice(-2000),
-    );
+    console.error("\nLAST 2000 CHARACTERS:\n", jsonString.slice(-2000));
 
-    throw new Error(
-      `The AI generated invalid JSON: ${error.message}`,
-    );
+    throw new Error(`The AI generated invalid JSON: ${error.message}`);
   }
 };
 
@@ -107,80 +69,49 @@ const extractJson = (content) => {
  * Detects the coding intent from the AI response.
  */
 const normalizeIntent = (content) => {
-  const normalizedContent = String(
-    content || "",
-  )
+  const normalizedContent = String(content || "")
     .trim()
     .toUpperCase();
 
-  const detectedIntent =
-    VALID_INTENTS.find(
-      (intent) =>
-        normalizedContent.includes(
-          intent,
-        ),
-    );
-
-  return (
-    detectedIntent ||
-    "CODE_EXPLANATION"
+  const detectedIntent = VALID_INTENTS.find((intent) =>
+    normalizedContent.includes(intent),
   );
+
+  return detectedIntent || "CODE_EXPLANATION";
 };
 
 /**
  * Checks whether generated project data is valid.
  */
-const validateProject = (
-  projectData,
-) => {
-  if (
-    !projectData ||
-    typeof projectData !== "object"
-  ) {
-    throw new Error(
-      "The AI did not return a valid project object.",
-    );
+const validateProject = (projectData) => {
+  if (!projectData || typeof projectData !== "object") {
+    throw new Error("The AI did not return a valid project object.");
   }
 
-  if (
-    !Array.isArray(
-      projectData.files,
+  if (!Array.isArray(projectData.files)) {
+    throw new Error("The AI response does not contain a valid files array.");
+  }
+
+  if (projectData.files.length === 0) {
+    throw new Error("The AI generated an empty project.");
+  }
+
+  const files = projectData.files
+    .filter(
+      (file) =>
+        file &&
+        typeof file.name === "string" &&
+        typeof file.content === "string" &&
+        file.name.trim() &&
+        file.content.trim(),
     )
-  ) {
-    throw new Error(
-      "The AI response does not contain a valid files array.",
-    );
-  }
-
-  if (
-    projectData.files.length === 0
-  ) {
-    throw new Error(
-      "The AI generated an empty project.",
-    );
-  }
-
-  const files =
-    projectData.files
-      .filter(
-        (file) =>
-          file &&
-          typeof file.name ===
-            "string" &&
-          typeof file.content ===
-            "string" &&
-          file.name.trim() &&
-          file.content.trim(),
-      )
-      .map((file) => ({
-        name: file.name.trim(),
-        content: file.content,
-      }));
+    .map((file) => ({
+      name: file.name.trim(),
+      content: file.content,
+    }));
 
   if (files.length === 0) {
-    throw new Error(
-      "The generated project files have an invalid format.",
-    );
+    throw new Error("The generated project files have an invalid format.");
   }
 
   return files;
@@ -189,9 +120,7 @@ const validateProject = (
 /**
  * Creates the prompt used for project generation.
  */
-const createProjectPrompt = (
-  userPrompt,
-) => `
+const createProjectPrompt = (userPrompt) => `
 You are NexusAI, an expert full-stack software engineer.
 
 Generate a complete, working, and concise project
@@ -302,43 +231,21 @@ ${userPrompt}
  * Generates a project and retries once
  * if the AI returns invalid JSON.
  */
-const generateProject = async (
-  codingLlm,
-  userPrompt,
-) => {
-  const projectPrompt =
-    createProjectPrompt(
-      userPrompt,
-    );
+const generateProject = async (codingLlm, userPrompt) => {
+  const projectPrompt = createProjectPrompt(userPrompt);
 
-  let codeResponse =
-    await codingLlm.invoke(
-      projectPrompt,
-    );
+  let codeResponse = await codingLlm.invoke(projectPrompt);
 
-  console.log(
-    "\nRAW CODE RESPONSE:\n",
-    codeResponse.content,
-  );
+  console.log("\nRAW CODE RESPONSE:\n", codeResponse.content);
 
   try {
-    const projectData =
-      extractJson(
-        codeResponse.content,
-      );
+    const projectData = extractJson(codeResponse.content);
 
-    return validateProject(
-      projectData,
-    );
+    return validateProject(projectData);
   } catch (firstError) {
-    console.error(
-      "\nFIRST PROJECT GENERATION FAILED:",
-      firstError.message,
-    );
+    console.error("\nFIRST PROJECT GENERATION FAILED:", firstError.message);
 
-    console.log(
-      "\nRETRYING PROJECT GENERATION...\n",
-    );
+    console.log("\nRETRYING PROJECT GENERATION...\n");
 
     const retryPrompt = `
 Your previous project response was invalid,
@@ -373,41 +280,25 @@ Original user request:
 ${userPrompt}
 `;
 
-    codeResponse =
-      await codingLlm.invoke(
-        retryPrompt,
-      );
+    codeResponse = await codingLlm.invoke(retryPrompt);
 
-    console.log(
-      "\nRAW RETRY RESPONSE:\n",
-      codeResponse.content,
-    );
+    console.log("\nRAW RETRY RESPONSE:\n", codeResponse.content);
 
-    const projectData =
-      extractJson(
-        codeResponse.content,
-      );
+    const projectData = extractJson(codeResponse.content);
 
-    return validateProject(
-      projectData,
-    );
+    return validateProject(projectData);
   }
 };
 
-export const codingAgent = async (
-  state,
-) => {
+export const codingAgent = async (state) => {
   try {
-    const userPrompt = String(
-      state.prompt || "",
-    ).trim();
+    const userPrompt = String(state.prompt || "").trim();
 
     if (!userPrompt) {
       return {
         ...state,
 
-        aiResponse:
-          "Please provide a coding request.",
+        aiResponse: "Please provide a coding request.",
 
         artifacts: [],
 
@@ -415,14 +306,11 @@ export const codingAgent = async (
       };
     }
 
-    const intentLlm =
-      getModel("intent");
+    const intentLlm = getModel("intent");
 
-    const codingLlm =
-      getModel("coding");
+    const codingLlm = getModel("coding");
 
-    const intentResponse =
-      await intentLlm.invoke(`
+    const intentResponse = await intentLlm.invoke(`
 You are an intent classifier
 for a coding assistant.
 
@@ -452,49 +340,31 @@ USER REQUEST:
 ${userPrompt}
 `);
 
-    const intent =
-      normalizeIntent(
-        intentResponse.content,
-      );
+    const intent = normalizeIntent(intentResponse.content);
 
-    console.log(
-      "Detected coding intent:",
-      intent,
-    );
+    console.log("Detected coding intent:", intent);
 
-    if (
-      intent ===
-      "CODE_GENERATION"
-    ) {
-      const files =
-        await generateProject(
-          codingLlm,
-          userPrompt,
-        );
+    if (intent === "CODE_GENERATION") {
+      const files = await generateProject(codingLlm, userPrompt);
 
-      await deductCredits(state.userId,"coding")  
+      const creditResult = await deductCredits(state.userId, "coding");
+
+      if (!creditResult?.success) {
+        throw new Error(creditResult?.message || "Credit deduction failed");
+      }
 
       return {
         ...state,
-
-        aiResponse:
-          "Code generated successfully.",
-
+        aiResponse: "Code generated successfully.",
         artifacts: [
           {
-            id:
-              `project-${Date.now()}`,
+            id: `project-${Date.now()}`,
 
-            type:
-              "Project",
+            type: "Project",
 
             title:
-              userPrompt.length >
-              100
-                ? `${userPrompt.slice(
-                    0,
-                    100,
-                  )}...`
+              userPrompt.length > 100
+                ? `${userPrompt.slice(0, 100)}...`
                 : userPrompt,
 
             files,
@@ -502,11 +372,11 @@ ${userPrompt}
         ],
 
         images: [],
+        credits: creditResult.credits,
       };
     }
 
-    const response =
-      await codingLlm.invoke(`
+    const response = await codingLlm.invoke(`
 You are NexusAI,
 an expert Coding Agent.
 
@@ -554,29 +424,28 @@ ORIGINAL USER REQUEST:
 ${userPrompt}
 `);
 
-await deductCredits(state.userId,"coding")
+    const creditResult = await deductCredits(state.userId, "coding");
+
+    if (!creditResult?.success) {
+      throw new Error(creditResult?.message || "Credit deduction failed");
+    }
+
     return {
       ...state,
-
       aiResponse:
         response.content?.trim() ||
         "I could not generate a response for this request.",
-
       artifacts: [],
-
       images: [],
+      credits: creditResult.credits,
     };
   } catch (error) {
-    console.error(
-      "Coding Agent Error:",
-      error,
-    );
+    console.error("Coding Agent Error:", error);
 
     return {
       ...state,
 
-      aiResponse:
-        `Unable to process the coding request: ${error.message}`,
+      aiResponse: `Unable to process the coding request: ${error.message}`,
 
       artifacts: [],
 

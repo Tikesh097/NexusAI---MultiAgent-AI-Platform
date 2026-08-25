@@ -22,6 +22,8 @@ import {
   setSelectedConversation,
 } from "../redux/conversationSlice";
 import { addMessage, setArtifacts, setIsLoading, setloadingAgent } from "../redux/messageSlice.js";
+import { updateCredits } from "../redux/userSlice";
+
 
 const MAX_TITLE_LENGTH = 40;
 
@@ -135,7 +137,7 @@ function ChatInput() {
       }
 
       const data = await sendMessage(formData);
-     
+
       // --------------------------------------------------
       // 5. IMPORTANT:
       // sendMessage can return null when backend returns
@@ -153,6 +155,10 @@ function ChatInput() {
         );
 
         return;
+      }
+
+      if (typeof data?.credits === "number") {
+        dispatch(updateCredits(data.credits));
       }
 
       // --------------------------------------------------
@@ -192,7 +198,7 @@ function ChatInput() {
       );
     } finally {
       setIsSending(false);
-       dispatch(setIsLoading(false))
+      dispatch(setIsLoading(false))
     }
   }, [value, isSending, selectedConversation, selectedAgent, selectedFile, dispatch]);
 
@@ -412,8 +418,8 @@ function ChatInput() {
           onClick={handleSendMessage}
           aria-label="Send message"
           className={`flex h-8 w-8 items-center justify-center rounded-lg border-none text-white transition-all duration-200 ease-out ${hasValue && !isSending
-              ? "cursor-pointer active:scale-90 hover:-translate-y-[1px]"
-              : "cursor-not-allowed opacity-50"
+            ? "cursor-pointer active:scale-90 hover:-translate-y-[1px]"
+            : "cursor-not-allowed opacity-50"
             }`}
           style={{
             background:

@@ -46,6 +46,7 @@ export const agent = async (req, res) => {
       userId,
       file
     });
+
     // --------------------------------------------------
     // Extract response safely
     // --------------------------------------------------
@@ -64,14 +65,6 @@ export const agent = async (req, res) => {
     // --------------------------------------------------
     await addMessage(conversationId, "assistant", aiResponse);
 
-    console.log("📤 SAVING ASSISTANT MESSAGE:", {
-      conversationId,
-      role: "assistant",
-      content: aiResponse,
-      images,
-      artifacts,
-    });
-
     // --------------------------------------------------
     // Save assistant response to chat service
     // --------------------------------------------------
@@ -86,11 +79,15 @@ export const agent = async (req, res) => {
     // --------------------------------------------------
     // Return response to frontend
     // --------------------------------------------------
+    console.log("🤖 GRAPH RESULT:", result);
+    console.log("💰 GRAPH CREDITS:", result?.credits);
+    
     return res.status(200).json({
       success: true,
       answer: aiResponse,
       images,
       artifacts,
+      credits: result?.credits,
     });
   } catch (error) {
     console.error("❌ Agent Error:", error.response?.data || error.message);

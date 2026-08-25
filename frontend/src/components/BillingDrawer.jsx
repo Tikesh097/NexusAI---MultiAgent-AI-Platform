@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, Crown, Sparkles, X, Zap } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
@@ -36,6 +37,17 @@ function BillingDrawer({ open, onClose }) {
 
   const { userData } = useSelector((state) => state.user);
   const dispatch = useDispatch()
+
+  // Lock background scroll while drawer is open (also helps mobile)
+  useEffect(() => {
+    if (open) {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [open]);
 
   const handleUpgrade = async (plan) => {
     try {
@@ -111,7 +123,7 @@ function BillingDrawer({ open, onClose }) {
   const creditsTotal = userData?.totalCredits || 100;
   const creditsPct = Math.min(100, Math.max(0, (creditsUsed / (creditsTotal || 1)) * 100));
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -130,7 +142,7 @@ function BillingDrawer({ open, onClose }) {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed right-0 top-0 z-50 h-screen w-full sm:w-[380px] border-l border-white/[0.08] shadow-2xl flex flex-col overflow-hidden"
+            className="fixed right-0 top-0 z-50 h-[100dvh] w-full sm:w-[380px] border-l border-white/[0.08] shadow-2xl flex flex-col overflow-hidden"
             style={{
               background: "radial-gradient(140% 100% at 100% 0%, #14151F 0%, #0A0B12 55%, #08090F 100%)",
             }}
@@ -217,7 +229,7 @@ function BillingDrawer({ open, onClose }) {
             </div>
 
             {/* Plans */}
-            <div className="relative px-5 pb-5 flex-1 overflow-auto space-y-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="relative px-5 pb-5 flex-1 overflow-auto overscroll-contain space-y-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-600 px-0.5">
                 Upgrade your plan
               </p>
@@ -328,7 +340,8 @@ function BillingDrawer({ open, onClose }) {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 

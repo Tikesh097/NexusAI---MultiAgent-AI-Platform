@@ -70,7 +70,12 @@ ${state.prompt}
     // --------------------------------------------------
 
     let rawContent = res?.content || "";
-    await deductCredits(state.userId,"ppt")
+
+    const creditResult = await deductCredits(state.userId, "ppt");
+
+    if (!creditResult?.success) {
+      throw new Error(creditResult?.message || "Credit deduction failed");
+    }
 
     // LangChain models can sometimes return content as an array
     if (Array.isArray(rawContent)) {
@@ -206,11 +211,7 @@ ${state.prompt}
     const contentType =
       "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
-    const uploadResult = await uploadToS3(
-      filename,
-      buffer,
-      contentType
-    );
+    const uploadResult = await uploadToS3(filename, buffer, contentType);
 
     console.log("PPT UPLOADED TO S3:");
     console.log(uploadResult);
@@ -219,15 +220,10 @@ ${state.prompt}
     // Generate signed download URL
     // --------------------------------------------------
 
-    const downloadUrl = await getFromS3(
-      filename,
-      24 * 60 * 60
-    );
+    const downloadUrl = await getFromS3(filename, 24 * 60 * 60);
 
     if (!downloadUrl) {
-      throw new Error(
-        "Failed to generate PPT download URL."
-      );
+      throw new Error("Failed to generate PPT download URL.");
     }
 
     console.log("PPT DOWNLOAD URL CREATED");
@@ -249,10 +245,7 @@ ${state.prompt}
       slides: data.slides,
     };
 
-    console.log(
-      "PPT ARTIFACT:",
-      JSON.stringify(pptArtifact, null, 2)
-    );
+    console.log("PPT ARTIFACT:", JSON.stringify(pptArtifact, null, 2));
 
     // --------------------------------------------------
     // Return response

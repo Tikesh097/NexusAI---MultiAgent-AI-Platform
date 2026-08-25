@@ -51,9 +51,11 @@ ${state.prompt}
 
     // Convert LLM response into an object
     const pdfData = JSON.parse(rawContent);
-    await deductCredits(state.userId,"pdf")
+    const creditResult = await deductCredits(state.userId, "pdf");
 
-    console.log("📄 PDF Agent Result:", pdfData);
+    if (!creditResult?.success) {
+      throw new Error(creditResult?.message || "Credit deduction failed");
+    }
 
     // Generate actual PDF
     const pdfBuffer = await generatePdf(pdfData);
@@ -66,19 +68,12 @@ ${state.prompt}
       .toLowerCase()}.pdf`;
 
     // Upload PDF to S3
-    await uploadToS3(
-      filename,
-      pdfBuffer,
-      "application/pdf"
-    );
+    await uploadToS3(filename, pdfBuffer, "application/pdf");
 
     console.log("☁️ PDF uploaded to S3:", filename);
 
     // Generate temporary download URL
-    const downloadUrl = await getFromS3(
-      filename,
-      24 * 60 * 60
-    );
+    const downloadUrl = await getFromS3(filename, 24 * 60 * 60);
 
     console.log("🔗 PDF Download URL generated");
 
@@ -98,12 +93,13 @@ ${state.prompt}
       artifacts: [
         {
           ...pdfData,
-           type: "pdf",
+          type: "pdf",
           downloadUrl,
         },
       ],
 
       images: [],
+      credits: creditResult.credits
     };
   } catch (error) {
     console.error("❌ PDF Agent Error:", error);
@@ -118,5 +114,4 @@ ${state.prompt}
       images: [],
     };
   }
-
-}
+};

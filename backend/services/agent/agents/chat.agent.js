@@ -10,7 +10,7 @@ import { deductCredits } from "../utils/deductCredits.js";
 
 export const chatAgent = async (state) => {
   try {
-    const llm = await getModel("chat");
+    const llm = getModel("chat");
 
     // Load previous conversation history
     const history = (await getMemory(state.conversationId)) || [];
@@ -82,11 +82,16 @@ Markdown formatting:
         ? response.content
         : JSON.stringify(response.content);
 
-    await deductCredits(state.userId, "chat");
+    const creditResult = await deductCredits(state.userId, "chat");
+
+    if (!creditResult?.success) {
+      throw new Error(creditResult?.message || "Credit deduction failed");
+    }
 
     return {
       ...state,
       aiResponse,
+      credits: creditResult.credits,
     };
   } catch (error) {
     console.error("Chat Agent Error:", error.message);

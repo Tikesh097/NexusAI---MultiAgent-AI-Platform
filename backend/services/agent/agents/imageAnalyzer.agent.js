@@ -1,18 +1,17 @@
-import { HumanMessage, SystemMessage } from "@langchain/core/messages"
-import { getModel } from "../config/llmModels.js"
-import fs from "fs/promises"
-import { deductCredits } from "../utils/deductCredits.js"
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { getModel } from "../config/llmModels.js";
+import fs from "fs/promises";
+import { deductCredits } from "../utils/deductCredits.js";
 
+export const imageAnalyzer = async (state) => {
+  try {
+    const llm = getModel("imageAnalyzer");
+    const imageBuffer = await fs.readFile(state.file.path);
+    const base64Image = imageBuffer.toString("base64");
 
-export const imageAnalyzer=async (state)=>{
-try {
-    const llm=await getModel("imageAnalyzer")
-    const imageBuffer = await fs.readFile(state.file.path)
-    const base64Image= imageBuffer.toString("base64")
-
-    const messages=[
-        new SystemMessage(
-            `You are NexusAI image analyzer Agent,
+    const messages = [
+      new SystemMessage(
+        `You are NexusAI image analyzer Agent,
 
     Rules:
 - Analyze only the uploaded image.
@@ -22,39 +21,51 @@ try {
 - If something is unclear, say so.
 - Use Markdown when helpful.
 - Do not hallucinate.  
-`
-        ),
-        new HumanMessage(
-            {
-                content:[
-                    {
-                    type:"text",
-                    text:state.prompt || "analyze the image",
-                    },
-                    {
-                        type:"image_url",
-                        "image_url":{
-                            url:`data:${state.file.mimetype};base64,${base64Image}`
-                        }
-                    }
-                ]
-            }
-        )
-    ]
-    const response = await llm.invoke(messages)
-    await deductCredits(state.userId,"vision")
-    return {
-        ...state,
-        aiResponse: response.content
+`,
+      ),
+      new HumanMessage({
+        content: [
+          {
+            type: "text",
+            text: state.prompt || "analyze the image",
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:${state.file.mimetype};base64,${base64Image}`,
+            },
+          },
+        ],
+      }),
+    ];
+    const response = await llm.invoke(messages);
+    const creditResult = await deductCredits(state.userId, "vision");
+
+    if (!creditResult?.success) {
+      throw new Error(creditResult?.message || "Credit deduction failed");
     }
-} catch (error) {
-    console.log(error)
+
     return {
-        ...state,
-        aiResponse: "Failed to analyze file "
+      ...state,
+      aiResponse: response.content,
+      credits: creditResult.credits,
+    };
+  } catch (error) {
+    console.log(error);
+    return {
+      ...state,
+      aiResponse: "Failed to analyze file ",
+    };
+  } finally {
+  if (state.file?.path) {
+    try {
+      await fs.unlink(state.file.path);
+    } catch (unlinkError) {
+      console.error(
+        "Failed to remove uploaded file:",
+        unlinkError.message
+      );
     }
+  }
 }
-finally{
-    await fs.unlink(state.file.path)
-}
-}
+};
