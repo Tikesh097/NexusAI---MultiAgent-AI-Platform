@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Coins,
   Hexagon,
   LogOut,
   Menu,
   MessageSquare,
-  PanelLeftIcon,
   PenSquare,
   Plus,
   User,
@@ -23,9 +24,18 @@ import logOut from "../features/logOut";
 import { setUserData } from "../redux/userSlice";
 import BillingDrawer from "./BillingDrawer";
 
+// Single shared "slot" size used for every icon button in the rail:
+// header logo/toggle, new-chat (collapsed), and each conversation icon.
+// Keeping this in one place is what keeps the collapsed rail visually
+// aligned on one consistent grid instead of each button inventing its
+// own size.
+const ICON_SLOT = "w-8 h-8";
+const RAIL_PADDING = "px-2.5";
+
 function SideBar() {
   const [collapsed, setCollapsed] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [logoHovered, setLogoHovered] = useState(false);
 
   const dispatch = useDispatch();
 
@@ -162,123 +172,171 @@ function SideBar() {
 
         <div className="relative flex flex-col h-full">
           {/* Header */}
-          <div
-            className={`flex items-center gap-2.5 px-4 py-4 border-b border-white/[0.07] transition-all duration-200 ease-out ${
-              !showLabels ? "justify-center px-2" : ""
-            }`}
-          >
-            {/* Desktop collapse toggle */}
-            <button
-              className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer shrink-0 hover:scale-105 active:scale-95"
-              onClick={() => setCollapsed((prev) => !prev)}
-              aria-label="Toggle sidebar width"
-            >
-              <PanelLeftIcon
-                size={18}
-                className="transition-transform duration-300 ease-out"
-                style={{ transform: collapsed ? "rotate(180deg)" : "rotate(0deg)" }}
-              />
-            </button>
+          {showLabels ? (
+            <div className="flex items-center gap-2.5 py-4 px-4 border-b border-white/[0.07] transition-all duration-200 ease-out">
+              {/* Mobile close — only ever shown on mobile, own slot */}
+              <button
+                className={`lg:hidden flex items-center justify-center ${ICON_SLOT} rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer shrink-0 active:scale-95`}
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close sidebar"
+              >
+                <X size={18} />
+              </button>
 
-            {/* Mobile close */}
-            <button
-              className="lg:hidden flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer shrink-0 active:scale-95"
-              onClick={() => setMobileOpen(false)}
-              aria-label="Close sidebar"
-            >
-              <X size={18} />
-            </button>
-
-            <div
-              className="flex items-center justify-center w-7 h-7 rounded-[9px] shrink-0 transition-shadow duration-300 ring-1 ring-white/10"
-              style={{
-                background:
-                  "linear-gradient(135deg, #9B8CFF 0%, #5B9CFF 50%, #4F8FFF 100%)",
-                boxShadow:
-                  "0 0 18px rgba(139,124,255,0.55), inset 0 1px 0 rgba(255,255,255,0.25)",
-              }}
-            >
-              <Hexagon
-                size={14}
-                className="text-white fill-white/25"
-                strokeWidth={2.2}
-              />
-            </div>
-
-            <span
-              className={`text-[15.5px] font-semibold text-slate-100 tracking-tight flex-1 whitespace-nowrap ${labelTransition} ${labelState}`}
-            >
-              Nexus
-              <span
+              <div
+                className={`hidden lg:flex items-center justify-center ${ICON_SLOT} rounded-[9px] shrink-0 ring-1 ring-white/10`}
                 style={{
                   background:
-                    "linear-gradient(135deg, #A79BFF 0%, #6BA6FF 100%)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
+                    "linear-gradient(135deg, #9B8CFF 0%, #5B9CFF 50%, #4F8FFF 100%)",
+                  boxShadow:
+                    "0 0 18px rgba(139,124,255,0.55), inset 0 1px 0 rgba(255,255,255,0.25)",
                 }}
               >
-                AI
+                <Hexagon size={15} className="text-white fill-white/25" strokeWidth={2.2} />
+              </div>
+
+              {/* Mobile always shows the plain logo (no collapse toggle on mobile) */}
+              <div
+                className={`lg:hidden flex items-center justify-center ${ICON_SLOT} rounded-[9px] shrink-0 ring-1 ring-white/10`}
+                style={{
+                  background:
+                    "linear-gradient(135deg, #9B8CFF 0%, #5B9CFF 50%, #4F8FFF 100%)",
+                  boxShadow:
+                    "0 0 18px rgba(139,124,255,0.55), inset 0 1px 0 rgba(255,255,255,0.25)",
+                }}
+              >
+                <Hexagon size={15} className="text-white fill-white/25" strokeWidth={2.2} />
+              </div>
+
+              <button
+                className="hidden lg:flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer shrink-0 hover:scale-105 active:scale-95"
+                onClick={() => setCollapsed(true)}
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <span className="text-[15.5px] font-semibold text-slate-100 tracking-tight flex-1 whitespace-nowrap">
+                Nexus
+                <span
+                  style={{
+                    background:
+                      "linear-gradient(135deg, #A79BFF 0%, #6BA6FF 100%)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  AI
+                </span>
               </span>
-            </span>
 
-            <span
-              className={`text-[10px] font-medium text-slate-400 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-full tracking-wide whitespace-nowrap hover:border-[#8B7CFF]/40 hover:text-slate-300 ${labelTransition} ${labelState} ${
-                showLabels ? "" : "!px-0 !border-0"
-              }`}
-            >
-              {getPlanName(userData?.plan)}
-            </span>
+              <span className="text-[10px] font-medium text-slate-400 bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-full tracking-wide whitespace-nowrap hover:border-[#8B7CFF]/40 hover:text-slate-300">
+                {getPlanName(userData?.plan)}
+              </span>
 
-            <button
-              className={`flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-[#B4A9FF] hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer hover:scale-105 active:scale-95 ${labelState}`}
-              onClick={handleCreateConversation}
-              aria-label="New chat"
-            >
-              <PenSquare size={16} />
-            </button>
-          </div>
+              <button
+                className="flex items-center justify-center w-7 h-7 rounded-lg text-slate-500 hover:text-[#B4A9FF] hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer hover:scale-105 active:scale-95"
+                onClick={handleCreateConversation}
+                aria-label="New chat"
+              >
+                <PenSquare size={16} />
+              </button>
+            </div>
+          ) : (
+            // Collapsed: render ONLY the single toggle icon, centered with
+            // the exact same mx-auto pattern as the collapsed New Chat
+            // button and every conversation-row icon. No hidden/opacity-0
+            // siblings are rendered here, so there's nothing left over to
+            // skew flexbox centering — this is what was throwing the logo
+            // off-center relative to the icons below it.
+            <div className={`py-4 border-b border-white/[0.07] transition-all duration-200 ease-out ${RAIL_PADDING}`}>
+              <button
+                className={`hidden lg:flex items-center justify-center ${ICON_SLOT} mx-auto rounded-[9px] ring-1 ring-white/10 border-none cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95`}
+                style={{
+                  background: logoHovered
+                    ? "rgba(255,255,255,0.06)"
+                    : "linear-gradient(135deg, #9B8CFF 0%, #5B9CFF 50%, #4F8FFF 100%)",
+                  boxShadow: logoHovered
+                    ? "none"
+                    : "0 0 18px rgba(139,124,255,0.55), inset 0 1px 0 rgba(255,255,255,0.25)",
+                }}
+                onMouseEnter={() => setLogoHovered(true)}
+                onMouseLeave={() => setLogoHovered(false)}
+                onClick={() => setCollapsed(false)}
+                aria-label="Expand sidebar"
+                title="Expand sidebar"
+              >
+                {logoHovered ? (
+                  <ChevronRight size={18} className="text-slate-200" />
+                ) : (
+                  <Hexagon size={15} className="text-white fill-white/25" strokeWidth={2.2} />
+                )}
+              </button>
+
+              {/* Mobile drawer never shows the collapsed rail state, but
+                  keep a matching close button available just in case. */}
+              <button
+                className={`lg:hidden flex items-center justify-center ${ICON_SLOT} mx-auto rounded-lg text-slate-500 hover:text-slate-200 hover:bg-white/[0.06] transition-all duration-200 bg-transparent border-none cursor-pointer active:scale-95`}
+                onClick={() => setMobileOpen(false)}
+                aria-label="Close sidebar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
 
           {/* New Chat */}
           <div
-            className={`px-4 pt-4 pb-1 transition-all duration-200 ease-out ${
-              !showLabels ? "px-2" : ""
+            className={`pt-4 pb-1 transition-all duration-200 ease-out ${
+              !showLabels ? RAIL_PADDING : "px-4"
             }`}
           >
-            <button
-              className={`group relative w-full flex items-center justify-center gap-2 text-sm font-semibold text-white rounded-xl py-[10px] border-none cursor-pointer overflow-hidden transition-all duration-200 ease-out hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98] ${
-                !showLabels ? "px-0" : ""
-              }`}
-              style={{
-                background:
-                  "linear-gradient(135deg, #9B8CFF 0%, #6B9EFF 55%, #4F8FFF 100%)",
-                boxShadow:
-                  "0 4px 16px rgba(79,143,255,0.32), inset 0 1px 0 rgba(255,255,255,0.2)",
-                transitionProperty:
-                  "box-shadow, transform, padding",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 8px 26px rgba(139,124,255,0.5), inset 0 1px 0 rgba(255,255,255,0.28)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow =
-                  "0 4px 16px rgba(79,143,255,0.32), inset 0 1px 0 rgba(255,255,255,0.2)";
-              }}
-              onClick={handleCreateConversation}
-              title={!showLabels ? "New Chat" : ""}
-            >
-              {/* subtle sheen sweep on hover */}
-              <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-
-              <Plus size={15} className="relative shrink-0" />
-
-              <span
-                className={`relative whitespace-nowrap ${labelTransition} ${labelState}`}
+            {showLabels ? (
+              <button
+                className="group relative w-full flex items-center justify-center gap-2 text-sm font-semibold text-white rounded-xl py-[10px] border-none cursor-pointer overflow-hidden transition-all duration-200 ease-out hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.98]"
+                style={{
+                  background:
+                    "linear-gradient(135deg, #9B8CFF 0%, #6B9EFF 55%, #4F8FFF 100%)",
+                  boxShadow:
+                    "0 4px 16px rgba(79,143,255,0.32), inset 0 1px 0 rgba(255,255,255,0.2)",
+                  transitionProperty: "box-shadow, transform",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    "0 8px 26px rgba(139,124,255,0.5), inset 0 1px 0 rgba(255,255,255,0.28)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 16px rgba(79,143,255,0.32), inset 0 1px 0 rgba(255,255,255,0.2)";
+                }}
+                onClick={handleCreateConversation}
               >
-                New Chat
-              </span>
-            </button>
+                {/* subtle sheen sweep on hover */}
+                <span className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+
+                <Plus size={15} className="relative shrink-0" />
+
+                <span className="relative whitespace-nowrap">New Chat</span>
+              </button>
+            ) : (
+              // Collapsed state: exact same slot size/shape as every
+              // conversation icon below, not a stretched pill.
+              <button
+                className={`group relative flex items-center justify-center ${ICON_SLOT} mx-auto rounded-[10px] border-none cursor-pointer overflow-hidden transition-all duration-200 ease-out hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.95]`}
+                style={{
+                  background:
+                    "linear-gradient(135deg, #9B8CFF 0%, #6B9EFF 55%, #4F8FFF 100%)",
+                  boxShadow:
+                    "0 4px 16px rgba(79,143,255,0.32), inset 0 1px 0 rgba(255,255,255,0.2)",
+                }}
+                onClick={handleCreateConversation}
+                aria-label="New chat"
+                title="New Chat"
+              >
+                <Plus size={16} className="relative text-white" />
+              </button>
+            )}
           </div>
 
           {/* Conversation Heading */}
@@ -291,7 +349,9 @@ function SideBar() {
           </div>
 
           {/* Conversations */}
-          <div className="flex-1 overflow-y-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-2.5">
+          <div
+            className={`flex-1 overflow-y-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${RAIL_PADDING}`}
+          >
             {conversation.map((conv) => {
               const isActive = selectedConversation?._id === conv?._id;
 
@@ -302,7 +362,7 @@ function SideBar() {
                   className={`
                     group relative flex items-center gap-2.5 cursor-pointer mb-0.5
                     rounded-[10px] border transition-all duration-200 ease-out
-                    ${!showLabels ? "justify-center px-2 py-2.5" : "pl-3.5 pr-3 py-2.5"}
+                    ${!showLabels ? "justify-center px-0 py-2" : "pl-3.5 pr-3 py-2.5"}
                     ${
                       isActive
                         ? "border-white/[0.1]"
@@ -335,7 +395,7 @@ function SideBar() {
 
                   <div
                     className={`
-                      flex items-center justify-center shrink-0 w-[28px] h-[28px]
+                      flex items-center justify-center shrink-0 ${ICON_SLOT}
                       rounded-lg transition-all duration-200
                       ${
                         isActive
@@ -344,7 +404,7 @@ function SideBar() {
                       }
                     `}
                   >
-                    <MessageSquare size={13} />
+                    <MessageSquare size={14} />
                   </div>
 
                   <span
@@ -366,20 +426,20 @@ function SideBar() {
 
           {/* User Profile */}
           <div
-            className={`py-3.5 px-3.5 transition-all duration-200 ease-out ${
-              !showLabels ? "px-2" : ""
+            className={`py-3.5 transition-all duration-200 ease-out ${
+              !showLabels ? RAIL_PADDING : "px-3.5"
             }`}
           >
             {userData ? (
               <div
-                className={`flex items-center gap-2.5 cursor-pointer rounded-xl px-3 py-2.5 border border-transparent hover:bg-white/[0.05] hover:border-white/[0.07] transition-all duration-200 ${
-                  !showLabels ? "justify-center px-0" : ""
+                className={`flex items-center gap-2.5 cursor-pointer rounded-xl border border-transparent hover:bg-white/[0.05] hover:border-white/[0.07] transition-all duration-200 ${
+                  !showLabels ? "justify-center py-1" : "px-3 py-2.5"
                 }`}
               >
                 <div className="relative shrink-0 group">
                   {userData?.avatar && !imageError ? (
                     <img
-                      className="w-10 h-10 rounded-[10px] object-cover border-2 border-white/15 transition-transform duration-200 ease-out"
+                      className={`${ICON_SLOT} rounded-[10px] object-cover border-2 border-white/15 transition-transform duration-200 ease-out`}
                       src={userData.avatar}
                       alt="User avatar"
                       referrerPolicy="no-referrer"
@@ -392,7 +452,7 @@ function SideBar() {
                     />
                   ) : (
                     <div
-                      className="w-10 h-10 rounded-[10px] flex items-center justify-center border border-white/10 transition-all duration-200 group-hover:border-[#9B8CFF]/50"
+                      className={`${ICON_SLOT} rounded-[10px] flex items-center justify-center border border-white/10 transition-all duration-200 group-hover:border-[#9B8CFF]/50`}
                       style={{
                         background:
                           "linear-gradient(135deg, rgba(155,140,255,0.35) 0%, rgba(79,143,255,0.35) 100%)",
@@ -437,7 +497,7 @@ function SideBar() {
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : showLabels ? (
               <button
                 type="button"
                 className="flex items-center justify-center gap-2 text-sm w-full font-semibold rounded-xl py-[11px] cursor-pointer transition-all duration-200 text-slate-100 border border-white/10 hover:border-[#9B8CFF]/40 hover:-translate-y-[1px] active:translate-y-0"
@@ -458,13 +518,19 @@ function SideBar() {
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
-                {showLabels ? (
-                  <span className={`${labelTransition} ${labelState}`}>
-                    Login
-                  </span>
-                ) : (
-                  <User size={17} />
-                )}
+                <span>Login</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                aria-label="Login"
+                className={`flex items-center justify-center ${ICON_SLOT} mx-auto rounded-xl cursor-pointer transition-all duration-200 text-slate-100 border border-white/10 hover:border-[#9B8CFF]/40 hover:-translate-y-[1px] active:translate-y-0`}
+                style={{
+                  background:
+                    "linear-gradient(135deg, rgba(155,140,255,0.14) 0%, rgba(79,143,255,0.1) 100%)",
+                }}
+              >
+                <User size={16} />
               </button>
             )}
           </div>

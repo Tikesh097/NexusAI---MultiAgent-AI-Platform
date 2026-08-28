@@ -2,13 +2,13 @@ import express from "express";
 import dotenv from "dotenv";
 import proxy from "express-http-proxy";
 dotenv.config();
+
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { getCurrentUser } from "./controllers/user.controller.js";
 import protect from "./middleware/auth.middleware.js";
-import { proxyWithHeader } from "./utils/proxyWithHeader.js"
+import { proxyWithHeader } from "./utils/proxyWithHeader.js";
 import morgan from "morgan";
-
 
 const port = process.env.PORT;
 const app = express();
@@ -20,16 +20,25 @@ app.use(
   }),
 );
 
-app.use(morgan("dev"))
+app.use(morgan("dev"));
 app.use(cookieParser());
 app.use(express.json());
 
-app.use("/api/auth", proxy(process.env.AUTH_SERVICE));
-app.use("/api/chat", protect,proxyWithHeader(process.env.CHAT_SERVICE));
-app.use("/api/agent", protect,proxyWithHeader(process.env.AGENT_SERVICE));
-app.use("/api/billing", protect,proxyWithHeader(process.env.BILLING_SERVICE));
+// ✅ Health check endpoint for AWS ALB
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "gateway",
+  });
+});
 
-app.get("/api/me",protect,getCurrentUser);
+// Existing routes
+app.use("/api/auth", proxy(process.env.AUTH_SERVICE));
+app.use("/api/chat", protect, proxyWithHeader(process.env.CHAT_SERVICE));
+app.use("/api/agent", protect, proxyWithHeader(process.env.AGENT_SERVICE));
+app.use("/api/billing", protect, proxyWithHeader(process.env.BILLING_SERVICE));
+
+app.get("/api/me", protect, getCurrentUser);
 
 app.listen(port, () => {
   console.log(`Gateway is Running on port ${port}`);
