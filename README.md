@@ -426,10 +426,5 @@ terms.
 
 **Tikesh097** [GitHub](https://github.com/Tikesh097) ·
 [Repository](https://github.com/Tikesh097/NexusAI---MultiAgent-AI-Platform)
-\`\`\`
-
-That's the complete, final README. Save it as `README.md` at the repo
-root. It's committed in the local clone, and included in the
-`NexusAI-source.zip`. Want me to also drop it into your `files/` folder
 as a downloadable file so you can grab...it directly. Just let me know
 and I'll export it as a standalone file for you.
