@@ -1,66 +1,106 @@
+<div align="center">
+
 # NexusAI — Multi-Agent AI Platform
 
-NexusAI is a microservice-based AI platform that routes every user prompt to the right specialized agent — chat, web search, coding, PDF generation, PowerPoint generation, or image generation — through a LangGraph orchestration layer, and serves it through a React chat interface.
+A microservice-based AI platform that routes every prompt to the right specialized agent — chat, web search, coding, PDF & PPT generation, image generation, PDF Q&A (RAG) and image understanding — through a **LangGraph** orchestration layer, served by a React chat interface.
 
-> Built with a **gateway + microservices** architecture: an API gateway fronts independent Auth, Chat, and Agent services, backed by MongoDB and Redis, with generated files delivered via AWS S3.
+[![Node](https://img.shields.io/badge/Node.js-18+-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev)
+[![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)](https://expressjs.com)
+[![LangGraph](https://img.shields.io/badge/LangGraph-orchestration-1C3C3C)](https://www.langchain.com/langgraph)
+[![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io)
+[![Tailwind](https://img.shields.io/badge/Tailwind-4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+
+</div>
+
+NexusAI is a **gateway + microservices** platform. An Express **API gateway** authenticates every request and reverse-proxies to independent **Auth**, **Chat**, **Agent** and **Billing** services, backed by **MongoDB**, **Redis**, **S3-compatible storage** (AWS S3 or Cloudflare R2) and **Qdrant**. Each user prompt is classified by an LLM-based router and dispatched to a specialized agent; generated files (PDFs, decks, images) are stored and delivered as expiring links.
 
 ---
 
 ## ✨ Features
 
-- **Intelligent agent routing** — an LLM-based router (LangGraph `StateGraph`) reads the user's prompt and dispatches it to the correct specialized agent, or the user can pin a specific agent directly.
-- **Six specialized agents**
+- **Intelligent agent routing** — a LangGraph `StateGraph` reads the user prompt and dispatches to the correct specialized agent (or the user can pin one explicitly).
+- **Eight specialized agents**
   - 💬 **Chat** — general conversation, explanations, Q&A
-  - 🔎 **Search** — current events and real-time information (Tavily), then summarized by the chat agent
-  - 💻 **Coding** — code generation, debugging, and architecture help
-  - 📄 **PDF** — generates PDF reports, resumes, articles, and notes on request
-  - 📊 **PPT** — generates PowerPoint decks from a prompt
+  - 🔎 **Search** — current events & real-time info (Tavily), summarized by the chat agent
+  - 💻 **Coding** — full project generation (multi-file HTML/CSS/JS artifacts with live preview) plus code review, debugging, optimization, and explanation
+  - 📄 **PDF** — generates PDF reports, resumes, articles, and notes
+  - 📊 **PPT** — professional slide decks ("Ink & Brass" editorial design) generated on demand
   - 🖼️ **Vision** — prompt-engineers and generates images
-- **Multi-LLM backend** — Groq, Google Gemini, and OpenRouter models, selected per agent
-- **Generated file delivery via S3** — PDFs, decks, and images are uploaded to AWS S3 and served back as time-limited download links
-- **Auth via Firebase** — Firebase Admin-backed authentication with JWT-protected gateway routes
-- **Conversation memory** — conversations and messages persisted per user in MongoDB, with Redis for shared/session state
-- **Modern chat UI** — React 19 + Redux Toolkit frontend with Markdown rendering, syntax-highlighted code blocks, and an in-browser code editor (Monaco)
+  - 📑 **PDF-RAG** — answers questions over uploaded PDFs using Qdrant retrieval + generation
+  - 🔍 **Image analyzer** — extracts and reasons over text/charts/tables in uploaded images (multimodal)
+- **Multi-LLM backend** — **Groq**, **Google Gemini**, and **OpenRouter**, selected per agent (and overridable via env).
+- **Credits & billing** — metered per-agent credit costs, a free plan, and Razorpay-powered plan upgrades.
+- **Redis-backed rate limiting** — per-user, per-agent request throttling.
+- **Conversation memory** — conversations and messages persisted in MongoDB, with Redis-backed session state and per-conversation message history.
+- **Modern chat UI** — React 19 + Redux Toolkit, Markdown rendering, syntax-highlighted code, an in-browser Monaco editor, and a live code preview pane.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-                            ┌─────────────────────┐
-                            │   Frontend (Vite)    │
-                            │  React + Redux + TW  │
-                            └──────────┬───────────┘
-                                       │  REST (axios, cookies)
-                                       ▼
-                            ┌─────────────────────┐
-                            │   API Gateway        │
-                            │  Express + JWT auth  │
-                            │  reverse proxy       │
-                            └──────────┬───────────┘
-                     ┌─────────────────┼─────────────────┐
-                     ▼                 ▼                 ▼
-             ┌───────────────┐ ┌───────────────┐ ┌────────────────────┐
-             │ Auth Service  │ │ Chat Service  │ │   Agent Service     │
-             │ Firebase Auth │ │ Conversations │ │ LangGraph router +  │
-             │ MongoDB       │ │ & Messages    │ │ 6 specialized agents│
-             │               │ │ MongoDB       │ │ MongoDB · S3 · Redis│
-             └───────────────┘ └───────────────┘ └──────────┬──────────┘
-                                                              │
-                                        ┌─────────────────────┼─────────────────────┐
-                                        ▼                     ▼                     ▼
-                                  Groq / Gemini /      AWS S3 (files)        Tavily (search)
-                                    OpenRouter
+                 ┌───────────────────────────────┐
+                 │  Frontend (Vite · React 19)    │
+                 │  Redux Toolkit · Tailwind      │
+                 └───────────────┬───────────────┘
+                                 │  REST (axios · cookie session)
+                                 ▼
+                 ┌───────────────────────────────┐
+                 │        API Gateway            │
+                 │  auth middleware · reverse     │
+                 │  proxy · /api/me              │
+                 └───────┬──────────┬───────────┘
+                         │          │
+              ┌──────────▼───┐ ┌───▼──────────────┐
+              │ Auth Service │ │ Chat Service     │
+              │ Firebase Auth│ │ Conversations &  │
+              │ users·credits│ │ messages (Mongo) │
+              └──────┬───────┘ └──────────────────┘
+                     │
+              ┌──────▼───────────┐   ┌────────────────┐
+              │  Agent Service    │──▶│ Billing Service │
+              │ LangGraph router  │   │ Razorpay orders │
+              │ + 8 agents        │   │ & verification  │
+              └───┬───┬───┬───┬──┘   └────────────────┘
+                  │   │   │   │
+        ┌─────────┘   │   │   └──────────────┐
+        ▼             ▼   ▼                  ▼
+  Groq / Gemini /  Tavily  S3 (R2)       Qdrant (PDF-RAG)
+  OpenRouter LLMs   (search) (artifacts)   (vector store)
+
+                    ┌───────────────┐
+                    │  Redis        │
+                    │ sessions · memory · rate limits │
+                    └───────────────┘
 ```
 
-Requests from the frontend hit the **gateway**, which authenticates the user and reverse-proxies to the appropriate downstream service:
+Requests from the frontend hit the **gateway**, which authenticates the user and reverse-proxies to the correct downstream service:
 
 | Route prefix | Proxied to      | Purpose                                   |
 | ------------- | ---------------- | ------------------------------------------ |
 | `/api/auth`   | Auth Service     | Login / logout                             |
 | `/api/chat`   | Chat Service      | Conversations & message history            |
 | `/api/agent`  | Agent Service     | Prompt routing & agent execution           |
-| `/api/me`     | Gateway (local)  | Current authenticated user                 |
+| `/api/billing`| Billing Service   | Razorpay order creation & verification     |
+| `/api/me`     | Gateway (local)  | Current authenticated user (plan + credits) |
+
+---
+
+## 🧠 How Agent Routing Works
+
+Every prompt sent to `/api/agent/chat` flows through a LangGraph `StateGraph`:
+
+1. **Router node** — if the user hasn't pinned a specific agent, an LLM classifies the prompt into one of `chat`, `search`, `coding`, `pdf`, `ppt`, or `vision` based on explicit routing rules (e.g. "generate a report on X as PDF" → `pdf`). An uploaded **PDF** is auto-routed to `pdfRag`; an uploaded **image** to `imageAnalyzer`.
+2. **Agent node** — the selected agent executes:
+   - `search` results are handed to the **chat** agent to be summarized before the final answer.
+   - `pdf` / `ppt` agents generate a file, upload it to S3/R2, and return a time-limited download link.
+   - `vision` expands the prompt into a detailed image prompt, generates the image, and returns it through a storage link.
+   - `pdfRag` splits the PDF, indexes chunks in Qdrant, retrieves the relevant context, and answers grounded in the document.
+   - `coding` either generates a multi-file project (returned as a browsable artifact) or handles review/debug/explain requests.
+3. **Credits** — each agent deducts the relevant credits **only after** a successful result and returns the remaining balance.
+4. **Response** — the final `aiResponse` (and any images/artifacts) is saved to the Chat service and persisted against the conversation.
 
 ---
 
@@ -69,27 +109,30 @@ Requests from the frontend hit the **gateway**, which authenticates the user and
 ```
 NexusAI/
 ├── backend/
-│   ├── docker-compose.yml       # Redis container
-│   ├── gateway/                 # API gateway (auth check + reverse proxy)
-│   │   ├── controllers/
-│   │   ├── middleware/          # JWT auth middleware
+│   ├── .env.example              # All backend env vars, documented
+│   ├── docker-compose.yml        # Redis · MongoDB · Qdrant (+ healthchecks)
+│   ├── gateway/                  # API gateway (auth check + reverse proxy)
+│   │   ├── config/               # local Redis client
+│   │   ├── controllers/          # /api/me
+│   │   ├── middleware/           # session auth middleware
 │   │   └── utils/                # header-forwarding proxy helper
-│   ├── shared/
-│   │   └── redis/               # shared Redis client
 │   └── services/
-│       ├── auth/                # Firebase-backed authentication service
-│       ├── chat/                # Conversation & message persistence
-│       └── agent/                # LangGraph orchestration + specialized agents
-│           ├── agents/           # chat, search, coding, pdf, ppt, vision agents
-│           ├── graph/             # StateGraph definition + router logic
-│           ├── config/            # DB, LLM models, memory, S3, Tavily config
-│           └── utils/              # PDF/PPT generation, S3 upload/download
+│       ├── auth/                 # Firebase-backed authentication
+│       ├── chat/                 # conversations & message persistence
+│       ├── agent/                # LangGraph orchestration + agents
+│       │   ├── agents/           # chat, search, coding, pdf, ppt, vision,
+│       │   │                     # pdfRag, imageAnalyzer
+│       │   ├── graph/            # StateGraph definition + router
+│       │   ├── config/           # db, LLM models, memory, S3, Tavily, Qdrant
+│       │   └── utils/            # PDF/PPT generation, S3 upload/download
+│       └── billing/              # Razorpay orders & payment verification
 └── frontend/
+    ├── .env.example              # frontend env vars, documented
     └── src/
-        ├── components/           # Chat UI, sidebar, message list, artifact viewer
-        ├── features/               # API calls (conversations, messages, auth)
-        ├── redux/                  # Redux Toolkit slices
-        └── pages/                   # Route-level pages
+        ├── components/           # Chat UI, sidebar, artifact viewer, billing
+        ├── features/             # API calls (auth, conversations, messages)
+        ├── redux/                # Redux Toolkit slices (user, conversation, message)
+        └── pages/                # Home / login
 ```
 
 ---
@@ -97,191 +140,168 @@ NexusAI/
 ## 🛠️ Tech Stack
 
 **Frontend**
-- React 19, Vite, Redux Toolkit, Tailwind CSS
-- React Markdown + remark-gfm, React Syntax Highlighter, Monaco Editor
-- Firebase (client SDK), Framer Motion (`motion`)
+- React 19 · Vite · Redux Toolkit · Tailwind CSS 4
+- React Markdown + remark-gfm · PrismLight syntax highlighting · Monaco editor (lazy-loaded)
+- Firebase (client) · Framer Motion (`motion`)
 
 **Backend**
-- Node.js, Express 5 (gateway + 3 microservices)
-- MongoDB (Mongoose) — auth, chat, and agent data
-- Redis (`ioredis`) — shared cache/session layer
-- Firebase Admin — server-side auth verification
+- Node.js 20+ · Express 5 (gateway + 4 microservices)
+- MongoDB (Mongoose) · Redis (`ioredis`)
+- Firebase Admin (server-side auth verification)
 
 **AI / Agents**
-- LangChain + LangGraph (`@langchain/langgraph`) for agent orchestration
-- LLM providers: **Groq**, **Google Gemini**, **OpenRouter**
-- Tavily for real-time web search
-- `pdfkit` for PDF generation, `pptxgenjs` for PowerPoint generation
-- Pollinations for image generation
+- LangChain + LangGraph (`@langchain/langgraph`) orchestration
+- LLMs: **Groq** · **Google Gemini** · **OpenRouter**
+- Tavily (real-time search) · Qdrant (vector store) · Pollinations (image generation)
+- `pdfkit` (PDF) · `pptxgenjs` (PowerPoint)
 
 **Infrastructure**
-- AWS S3 — storage for generated PDFs, decks, and images (served via presigned/expiring links)
-- Docker (Redis container via `docker-compose`)
+- S3-compatible storage (AWS S3 or Cloudflare R2) — artifact storage via presigned/expiring links
+- Docker — Redis, MongoDB, Qdrant for local dev
 
 ---
 
 ## 🚀 Getting Started
 
+> **Deploying to production?** Follow the step-by-step non-AWS guide in
+> **[`DEPLOYMENT.md`](./DEPLOYMENT.md)** (Vercel + Render + Atlas + Upstash + Qdrant + Cloudflare R2).
+
 ### Prerequisites
+- Node.js 20+ (Firebase Admin JSON import requires ≥20.10)
+- Docker (for Redis / MongoDB / Qdrant)
+- Firebase project + service account
+- API keys: Groq, Google (Gemini), OpenRouter, Tavily, S3-compatible storage (AWS S3 or Cloudflare R2), Razorpay
 
-- Node.js 18+
-- MongoDB (local or Atlas)
-- Redis (or run the provided `docker-compose.yml`)
-- Firebase project (for authentication)
-- API keys: Groq, Google Gemini, OpenRouter, Tavily, AWS S3
-
-### 1. Clone the repository
+### 1. Clone & install
 
 ```bash
 git clone https://github.com/Tikesh097/NexusAI---MultiAgent-AI-Platform.git
 cd NexusAI---MultiAgent-AI-Platform
+
+# Frontend
+cd frontend && npm install
+
+# Backend — install each service
+cd ../backend/gateway && npm install
+cd ../services/auth && npm install
+cd ../services/chat && npm install
+cd ../services/agent && npm install
+cd ../billing && npm install
 ```
 
-### 2. Start Redis
+### 2. Start the data layer
 
 ```bash
 cd backend
-docker-compose up -d
+cp .env.example .env     # then edit
+docker compose up -d     # Redis + MongoDB + Qdrant
 ```
 
-### 3. Install dependencies
+### 3. Configure environment variables
 
-Each service manages its own dependencies:
+Copy the templates and fill in your values:
 
 ```bash
-# Gateway
-cd backend/gateway && npm install
-
-# Auth service
-cd ../services/auth && npm install
-
-# Chat service
-cd ../chat && npm install
-
-# Agent service
-cd ../agent && npm install
-
+# Backend
+cp backend/.env.example backend/.env
 # Frontend
-cd ../../../frontend && npm install
+cp frontend/.env.example frontend/.env
 ```
 
-### 4. Configure environment variables
+> ⚠️ Never commit real `.env` files. They are gitignored.
 
-Create a `.env` file in **each** service directory (`gateway`, `services/auth`, `services/chat`, `services/agent`) with the relevant variables below.
+You'll also need your Firebase service account at
+`backend/services/auth/serviceAccountKey.json` (also gitignored).
 
-**Gateway** (`backend/gateway/.env`)
-```env
-PORT=5000
-FRONTEND_URL=http://localhost:5173
-AUTH_SERVICE=http://localhost:5001
-CHAT_SERVICE=http://localhost:5002
-AGENT_SERVICE=http://localhost:5003
-```
-
-**Auth service** (`backend/services/auth/.env`)
-```env
-PORT=5001
-MONGO_URI=your_mongodb_connection_string
-# Firebase Admin credentials (see firebase.js for the expected shape)
-```
-
-**Chat service** (`backend/services/chat/.env`)
-```env
-PORT=5002
-MONGO_URI=your_mongodb_connection_string
-```
-
-**Agent service** (`backend/services/agent/.env`)
-```env
-PORT=5003
-MONGO_URI=your_mongodb_connection_string
-REDIS_URL=redis://localhost:6379
-
-# LLM providers
-GROQ_API_KEY=your_groq_key
-GOOGLE_API_KEY=your_gemini_key
-OPENROUTER_API_KEY=your_openrouter_key
-
-# Search
-TAVILY_API_KEY=your_tavily_key
-
-# AWS S3 (generated file storage)
-AWS_REGION=your_aws_region
-AWS_BUCKET_NAME=your_bucket_name
-AWS_ACCESS_KEY_ID=your_access_key
-AWS_SECRET_KEY_ID=your_secret_key
-```
-
-> ⚠️ Never commit real `.env` files — they are already covered by `.gitignore`.
-
-### 5. Run the services
-
-Each service runs independently with `nodemon`:
+### 4. Run the services (each in its own terminal)
 
 ```bash
-# In separate terminals
 cd backend/gateway && npm run dev
 cd backend/services/auth && npm run dev
 cd backend/services/chat && npm run dev
 cd backend/services/agent && npm run dev
+cd backend/services/billing && npm run dev
 ```
 
-### 6. Run the frontend
+### 5. Run the frontend
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`, talking to the gateway at `http://localhost:5000`.
+The app runs at `http://localhost:5173` and talks to the gateway at `http://localhost:8000`.
 
 ---
 
-## 🧠 How Agent Routing Works
+## 🔐 Environment Variables
 
-Every prompt sent to `/api/agent/chat` flows through a LangGraph `StateGraph`:
+### Backend (`backend/.env`)
 
-1. **Router node** — if the user hasn't pinned a specific agent, an LLM classifies the prompt into one of `chat`, `search`, `coding`, `pdf`, `ppt`, or `vision` based on explicit routing rules (e.g. "generate a report on X as PDF" → `pdf`).
-2. **Agent node** — the selected agent executes:
-   - `search` results are handed off to the `chat` agent to be summarized before responding.
-   - `pdf` / `ppt` agents generate a file, upload it to S3, and return a time-limited download link.
-   - `vision` expands the prompt into a detailed image-generation prompt, generates the image, and returns it via an S3 link.
-3. **Response** — the final `aiResponse` is returned to the Chat service and persisted against the conversation.
+| Variable | Used by | Description |
+| --- | --- | --- |
+| `PORT` | gateway | Gateway port (default `8000`) |
+| `FRONTEND_URL` | gateway | Allowed CORS origin |
+| `REDIS_URL` | gateway, agent, auth | Redis connection string |
+| `MONGO_URI` | all services | MongoDB connection string |
+| `AUTH_SERVICE` / `CHAT_SERVICE` / `AGENT_SERVICE` / `BILLING_SERVICE` | gateway | Internal service URLs |
+| `GROQ_API_KEY`, `GROQ_MODEL` | agent | Groq chat/search/router model (default `openai/gpt-oss-120b`) |
+| `GOOGLE_API_KEY`, `GEMINI_MODEL` | agent | Gemini (image analysis, embeddings) |
+| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | agent | Coding model (default `deepseek/deepseek-chat`) |
+| `TAVILY_API_KEY` | agent | Web search |
+| `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_BUCKET_NAME`, `AWS_ENDPOINT` | agent | S3 / R2 artifact storage |
+| `QDRANT_URL` | agent | Vector DB for PDF-RAG |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | billing | Payment gateway |
+
+### Frontend (`frontend/.env`)
+
+| Variable | Description |
+| --- | --- |
+| `VITE_SERVER_URL` | Backend gateway base URL (e.g. `http://localhost:8000`) |
+| `VITE_FIREBASE_API_KEY` | Firebase Web API key |
+| `VITE_RAZORPAY_KEY_ID` | Razorpay checkout key |
 
 ---
 
-## 📚 Concepts Explored While Building This
+## 💳 Credits & Plans
 
-This project was built as a deep, hands-on exercise in production-style AI systems. The current codebase in this repo implements the microservices, LangGraph routing, and file-generation agents described above. Beyond that, the build process also involved deliberately exploring the following concepts — some fully wired in, others prototyped or planned as the project evolves:
+| Plan | Price | Credits |
+| --- | --- | --- |
+| Free | ₹0 | 100 |
+| Starter | ₹199 | 500 |
+| Pro | ₹499 | 500 |
 
-- **Retrieval-Augmented Generation (RAG)** — grounding LLM responses in uploaded documents rather than model memory alone
-- **Qdrant vector database** — storing and querying document embeddings for semantic retrieval
-- **PDF RAG agent** — answering questions over uploaded PDFs via retrieval + generation
-- **Image-to-text agent** — extracting and reasoning over content from uploaded images
-- **Docker containerization** — packaging services as containers for consistent local and cloud environments (currently applied to Redis; extending to all services is on the roadmap)
-- **AWS deployment** — cloud hosting strategy for the gateway, services, and S3-backed file storage
-- **Rate limiting with Redis** — protecting agent endpoints from abuse using Redis-backed request throttling
-- **Billing & credits system (Razorpay)** — metering AI usage per user and integrating a payment gateway for credit top-ups
-- **Streaming AI responses** — delivering LLM output token-by-token for a faster perceived response time
-- **AI tool calling** — letting LLMs invoke structured tools/functions as part of an agent's reasoning loop
+Agent requests consume credits (chat `1`, search `5`, coding `10`, pdf `10`, ppt `10`, vision `5`). Credits are deducted only after a successful result and are enforced server-side; the UI also shows rate-limit warnings per agent.
 
-> These points reflect the broader system-design and AI-engineering scope this project was built to practice, not a claim that every item is live in this exact snapshot of the repo. See the Roadmap below for what's planned next.
+---
+
+## 🔌 API Reference (via Gateway)
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/login` | — | Firebase token → session cookie |
+| `GET` | `/api/auth/logout` | ✓ | Invalidate session |
+| `GET` | `/api/me` | ✓ | Current user (plan, credits) |
+| `POST` | `/api/chat/create-conversation` | ✓ | Create a conversation |
+| `GET` | `/api/chat/get-conversations` | ✓ | List conversations |
+| `GET` | `/api/chat/get-message/:id` | ✓ | Message history |
+| `POST` | `/api/chat/save-message` | ✓ | Save a message |
+| `POST` | `/api/chat/update-conversation` | ✓ | Rename a conversation |
+| `POST` | `/api/agent/chat` | ✓ | Run an agent (multipart: prompt, agent, file) |
+| `POST` | `/api/billing/create` | ✓ | Create a Razorpay order |
+| `POST` | `/api/billing/verify` | ✓ | Verify a Razorpay payment |
+| `GET` | `/health` | — | Liveness check (for ALB) |
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Add automated tests across services
-- [ ] Add CI/CD pipeline
-- [ ] Add per-agent usage analytics
-- [ ] Support additional file export formats
-- [ ] Containerize all services (not just Redis) for one-command local setup
-- [ ] Add a RAG agent backed by Qdrant for document Q&A
-- [ ] Add an image-to-text agent for reasoning over uploaded images
-- [ ] Add Redis-backed rate limiting on agent endpoints
-- [ ] Add a billing/credits system with Razorpay integration
-- [ ] Deploy the full stack to AWS
-- [ ] Add streaming AI responses
+- [ ] Add automated tests across services (unit + integration)
+- [ ] Add CI/CD pipeline (build, lint, test, deploy)
+- [ ] Add per-agent usage analytics & dashboards
+- [ ] Stream AI responses token-by-token (SSE)
+- [ ] Add more file export formats (XLSX, DOCX)
+- [ ] Deploy the full stack to a cloud host with one-command setup
 
 ---
 
@@ -298,7 +318,7 @@ Contributions are welcome. Please open an issue to discuss significant changes b
 
 ## 📄 License
 
-No license has been specified for this repository yet. Add a `LICENSE` file to define usage terms.
+No license has been specified yet. Add a `LICENSE` file to define usage terms.
 
 ---
 
@@ -306,3 +326,6 @@ No license has been specified for this repository yet. Add a `LICENSE` file to d
 
 **Tikesh097**
 [GitHub](https://github.com/Tikesh097) · [Repository](https://github.com/Tikesh097/NexusAI---MultiAgent-AI-Platform)
+```
+
+That's the complete, final README. Save it as `README.md` at the repo root. It's committed in the local clone, and included in the `NexusAI-source.zip`. Want me to also drop it into your `files/` folder as a downloadable file so you can grab...it directly. Just let me know and I'll export it as a standalone file for you.
