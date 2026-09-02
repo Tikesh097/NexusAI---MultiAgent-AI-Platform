@@ -1,4 +1,3 @@
-<div align="center">
 
 # NexusAI — Multi-Agent AI Platform
 
@@ -12,7 +11,6 @@ A microservice-based AI platform that routes every prompt to the right specializ
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?logo=redis&logoColor=white)](https://redis.io)
 [![Tailwind](https://img.shields.io/badge/Tailwind-4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 
-</div>
 
 NexusAI is a **gateway + microservices** platform. An Express **API gateway** authenticates every request and reverse-proxies to independent **Auth**, **Chat**, **Agent** and **Billing** services, backed by **MongoDB**, **Redis**, **S3-compatible storage** (AWS S3 or Cloudflare R2) and **Qdrant**. Each user prompt is classified by an LLM-based router and dispatched to a specialized agent; generated files (PDFs, decks, images) are stored and delivered as expiring links.
 
