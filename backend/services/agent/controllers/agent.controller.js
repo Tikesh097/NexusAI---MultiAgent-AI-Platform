@@ -1,87 +1,131 @@
 import axios from "axios";
+
 import { graph } from "../graph/graph.js";
 import { addMessage } from "../config/memory.js";
 
 export const agent = async (req, res) => {
   try {
-    const { prompt, conversationId, agent } = req.body;
-    const file = req.file
+    const {
+      prompt,
+      conversationId,
+      agent: selectedAgent = "auto",
+    } = req.body;
+
+    const file = req.file;
     const userId = req.headers["x-user-id"];
-    // --------------------------------------------------
+    const trimmedPrompt = prompt?.trim();
+
     // Validate request
-    // --------------------------------------------------
-    if (!prompt?.trim()) {
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized: User ID is missing.",
+      });
+    }
+
+    if (!trimmedPrompt) {
       return res.status(400).json({
+        success: false,
         message: "Prompt is required.",
       });
     }
 
     if (!conversationId) {
       return res.status(400).json({
+        success: false,
         message: "Conversation ID is required.",
       });
     }
 
-    // --------------------------------------------------
-    // Save user message to memory
-    // --------------------------------------------------
-    await addMessage(conversationId, "user", prompt);
+    const chatRequestConfig = {
+      headers: {
+        "x-user-id": userId,
+        "x-internal-service-secret":
+          process.env.AGENT_SERVICE_SECRET,
+      },
+      timeout: 10000,
+    };
 
-    // --------------------------------------------------
-    // Save user message to chat service
-    // --------------------------------------------------
-    await axios.post(`${process.env.CHAT_SERVICE}/save-message`, {
-      conversationId,
-      role: "user",
-      content: prompt,
-    });
+    // Save the user message permanently
+    await axios.post(
+      `${process.env.CHAT_SERVICE}/save-message`,
+      {
+        conversationId,
+        role: "user",
+        content: trimmedPrompt,
+      },
+      chatRequestConfig
+    );
 
-    // --------------------------------------------------
-    // Run AI graph
-    // --------------------------------------------------
+    // Run the selected AI graph
     const result = await graph.invoke({
-      prompt,
+      prompt: trimmedPrompt,
       conversationId,
-      agent,
+      agent: selectedAgent,
       userId,
-      file
+      file,
     });
 
-    // --------------------------------------------------
-    // Extract response safely
-    // --------------------------------------------------
-    const aiResponse = result?.aiResponse || "";
+    // Extract graph result
+    const aiResponse =
+      typeof result?.aiResponse === "string"
+        ? result.aiResponse.trim()
+        : "";
 
-    const images = Array.isArray(result?.images) ? result.images : [];
+    const images = Array.isArray(result?.images)
+      ? result.images
+      : [];
 
-    const artifacts = Array.isArray(result?.artifacts) ? result.artifacts : [];
+    const artifacts = Array.isArray(result?.artifacts)
+      ? result.artifacts
+      : [];
 
     if (!aiResponse) {
       throw new Error("AI agent returned an empty response.");
     }
 
-    // --------------------------------------------------
-    // Save assistant response to memory
-    // --------------------------------------------------
-    await addMessage(conversationId, "assistant", aiResponse);
+    // Do not treat an agent error message as a successful response
+    if (aiResponse.startsWith("❌")) {
+      throw new Error(
+        aiResponse.replace(/^❌\s*/, "") ||
+          "AI agent request failed."
+      );
+    }
 
-    // --------------------------------------------------
-    // Save assistant response to chat service
-    // --------------------------------------------------
-    await axios.post(`${process.env.CHAT_SERVICE}/save-message`, {
+    // Update user-specific Redis memory
+    await addMessage(
       conversationId,
-      role: "assistant",
-      content: aiResponse,
-      images,
-      artifacts,
+      userId,
+      "user",
+      trimmedPrompt
+    );
+
+    await addMessage(
+      conversationId,
+      userId,
+      "assistant",
+      aiResponse
+    );
+
+    // Save the assistant response permanently
+    await axios.post(
+      `${process.env.CHAT_SERVICE}/save-message`,
+      {
+        conversationId,
+        role: "assistant",
+        content: aiResponse,
+        images,
+        artifacts,
+      },
+      chatRequestConfig
+    );
+
+    console.log("Agent request completed:", {
+      conversationId,
+      selectedAgent,
+      credits: result?.credits,
     });
 
-    // --------------------------------------------------
-    // Return response to frontend
-    // --------------------------------------------------
-    console.log("🤖 GRAPH RESULT:", result);
-    console.log("💰 GRAPH CREDITS:", result?.credits);
-    
     return res.status(200).json({
       success: true,
       answer: aiResponse,
@@ -90,11 +134,21 @@ export const agent = async (req, res) => {
       credits: result?.credits,
     });
   } catch (error) {
-    console.error("❌ Agent Error:", error.response?.data || error.message);
+    const status =
+      error.response?.status ||
+      error.status ||
+      500;
 
-    return res.status(500).json({
+    const message =
+      error.response?.data?.message ||
+      error.message ||
+      "Agent error";
+
+    console.error("Agent error:", message);
+
+    return res.status(status).json({
       success: false,
-      message: error.response?.data?.message || error.message || "Agent Error",
+      message,
       answer: "",
       images: [],
       artifacts: [],

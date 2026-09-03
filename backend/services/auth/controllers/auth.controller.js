@@ -1,13 +1,26 @@
 import crypto from "crypto";
 import { getAuth } from "firebase-admin/auth";
+
 import { app } from "../config/firebase.js";
 import User from "../models/user.model.js";
-import { createConnection } from "mongoose";
 import redis from "../../../shared/redis/redis.js";
+
+const SESSION_DURATION_SECONDS = 7 * 24 * 60 * 60;
+
+// ===============================
+// LOGIN
+// ===============================
 
 export const login = async (req, res) => {
   try {
     const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Firebase token is required",
+      });
+    }
 
     const decoded = await getAuth(app).verifyIdToken(token);
 
@@ -18,146 +31,211 @@ export const login = async (req, res) => {
     if (!user) {
       user = await User.create({
         firebaseUid: decoded.uid,
-        username: decoded.name,
+        username: decoded.name || "User",
         email: decoded.email,
         avatar: decoded.picture,
       });
     }
 
     const sessionId = crypto.randomUUID();
+
+    /*
+     * Store only immutable identity in the session.
+     * Credits, plans and profile data remain in MongoDB.
+     */
     await redis.set(
       `session:${sessionId}`,
       JSON.stringify({
-        userId: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        plan: user.plan,
-        credits: user.credits,
-        totalCredits: user.totalCredits,
-        planExpiresAt: user.planExpiresAt,
+        userId: user._id.toString(),
       }),
       "EX",
-      7 * 24 * 60 * 60,
-    ); // Set expiration to 7 days
+      SESSION_DURATION_SECONDS,
+    );
 
-   res.cookie("session", sessionId, {
-     httpOnly: true,
-     secure: true,
-     sameSite: "none",
-     path: "/",
-     maxAge: 7 * 24 * 60 * 60 * 1000,
-   });
+    res.cookie("session", sessionId, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: SESSION_DURATION_SECONDS * 1000,
+    });
 
     return res.status(200).json({
+      success: true,
       message: "Login successful",
       user,
     });
   } catch (error) {
+    console.error("Login error:", error);
+
     return res.status(500).json({
+      success: false,
       message: "Login failed",
       error: error.message,
     });
   }
 };
 
+// ===============================
+// LOGOUT
+// ===============================
+
 export const logout = async (req, res) => {
   try {
     const sessionId = req.cookies?.session;
-    await redis.del(`session:${sessionId}`);
+
+    if (sessionId) {
+      await redis.del(`session:${sessionId}`);
+    }
+
     res.clearCookie("session", {
       httpOnly: true,
       secure: true,
       sameSite: "none",
       path: "/",
     });
+
     return res.status(200).json({
+      success: true,
       message: "Logout successful",
     });
   } catch (error) {
+    console.error("Logout error:", error);
+
     return res.status(500).json({
+      success: false,
       message: "Logout failed",
       error: error.message,
     });
   }
 };
 
-export const updateUserPayment = async (req, res) => {
-  try {
-    const { plan, credits, userId } = req.body;
+// ===============================
+// GET CURRENT USER FOR GATEWAY
+// ===============================
 
-    if (!userId || !plan || credits === undefined) {
-      return res.status(400).json({
+export const getInternalUser = async (req, res) => {
+  try {
+    const userId = req.headers["x-user-id"];
+
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message: "userId, plan and credits are required",
+        message: "Unauthorized",
       });
     }
 
-    // Find user
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select(
+      "-firebaseUid -__v",
+    );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User Not Found",
+        message: "User not found",
       });
     }
 
-    // ---------------------------------------
-    // UPDATE MONGODB
-    // ---------------------------------------
+    // Raw user maintains your existing frontend format.
+    return res.status(200).json(user);
+  } catch (error) {
+    console.error("Get internal user error:", error);
 
-    user.plan = plan;
+    return res.status(500).json({
+      success: false,
+      message: "Failed to retrieve user",
+    });
+  }
+};
 
-    user.credits += Number(credits);
+// ===============================
+// UPDATE PLAN AND ADD CREDITS
+// ===============================
 
-    user.totalCredits += Number(credits);
+export const updateUserPayment = async (req, res) => {
+  try {
+    const {
+      plan,
+      credits,
+      userId,
+      paymentId,
+    } = req.body;
 
-    user.planExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const creditAmount = Number(credits);
 
-    await user.save();
-
-    // ---------------------------------------
-    // FIND USER SESSION IN REDIS
-    // ---------------------------------------
-
-    const sessionKeys = await redis.keys("session:*");
-
-    for (const key of sessionKeys) {
-      const sessionData = await redis.get(key);
-
-      if (!sessionData) continue;
-
-      const session = JSON.parse(sessionData);
-
-      if (String(session.userId) === String(user._id)) {
-        // ---------------------------------------
-        // UPDATE REDIS SESSION
-        // ---------------------------------------
-
-        await redis.set(
-          key,
-          JSON.stringify({
-            userId: user._id,
-            username: user.username,
-            email: user.email,
-            avatar: user.avatar,
-            plan: user.plan,
-            credits: user.credits,
-            totalCredits: user.totalCredits,
-            planExpiresAt: user.planExpiresAt,
-          }),
-          "EX",
-          7 * 24 * 60 * 60,
-        );
-
-        break;
-      }
+    if (
+      !userId ||
+      !plan ||
+      !paymentId ||
+      !Number.isFinite(creditAmount) ||
+      creditAmount <= 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Valid userId, plan, paymentId and credits are required",
+      });
     }
 
+    const planExpiresAt = new Date(
+      Date.now() + 30 * 24 * 60 * 60 * 1000,
+    );
+
+    /*
+     * Atomic and idempotent:
+     * the same paymentId cannot add credits twice.
+     */
+    const user = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        processedPaymentIds: {
+          $ne: paymentId,
+        },
+      },
+      {
+        $set: {
+          plan,
+          planExpiresAt,
+        },
+        $inc: {
+          credits: creditAmount,
+          totalCredits: creditAmount,
+        },
+        $addToSet: {
+          processedPaymentIds: paymentId,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    if (!user) {
+      const userExists = await User.exists({
+        _id: userId,
+      });
+
+      if (!userExists) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      return res.status(409).json({
+        success: false,
+        message: "Payment already applied",
+      });
+    }
+
+    /*
+     * No Redis user or session update is needed.
+     * /api/me retrieves current data from MongoDB.
+     */
     return res.status(200).json({
       success: true,
-      message: "Payment verified and user updated successfully",
+      message: "Plan and credits updated successfully",
       user: {
         userId: user._id,
         plan: user.plan,
@@ -167,15 +245,19 @@ export const updateUserPayment = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ Update User Payment Error:", error);
+    console.error("Update user payment error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Update User Payment Error",
+      message: "Update user payment error",
       error: error.message,
     });
   }
 };
+
+// ===============================
+// DEDUCT CREDITS
+// ===============================
 
 export const deductCredits = async (req, res) => {
   try {
@@ -190,56 +272,76 @@ export const deductCredits = async (req, res) => {
       vision: 5,
     };
 
-    const user = await User.findById(userId);
-
-    if (!user) {
+    if (!userId) {
       return res.status(400).json({
         success: false,
-        message: "User Not Found",
+        message: "User ID is required",
       });
     }
 
-    const requiredCredits = COST[agent] || 1;
-
-    if (user.credits < requiredCredits) {
+    if (!Object.hasOwn(COST, agent)) {
       return res.status(400).json({
         success: false,
-        message: "Not Enough Credits",
+        message: "Invalid agent type",
       });
     }
 
-    user.credits -= requiredCredits;
-    await user.save();
+    const requiredCredits = COST[agent];
 
-    // Define Redis key
-    const key = `user:${userId}`;
-
-    await redis.set(
-      key,
-      JSON.stringify({
-        userId: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        plan: user.plan,
-        credits: user.credits,
-        totalCredits: user.totalCredits,
-        planExpiresAt: user.planExpiresAt,
-      }),
-      "EX",
-      7 * 24 * 60 * 60
+    /*
+     * Atomic deduction prevents two simultaneous requests
+     * from spending the same credits.
+     */
+    const user = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        credits: {
+          $gte: requiredCredits,
+        },
+      },
+      {
+        $inc: {
+          credits: -requiredCredits,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
     );
 
+    if (!user) {
+      const userExists = await User.exists({
+        _id: userId,
+      });
+
+      if (!userExists) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Not enough credits",
+      });
+    }
+
+    /*
+     * Do not create user:<userId> or modify session keys.
+     * MongoDB is the authoritative source.
+     */
     return res.status(200).json({
       success: true,
       credits: user.credits,
     });
   } catch (error) {
-    console.error("❌ Deducts Credit Error:", error);
+    console.error("Deduct credits error:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Deducts Credit Error",
+      message: "Deduct credits error",
       error: error.message,
     });
   }

@@ -3,10 +3,17 @@ import dotenv from "dotenv";
 import proxy from "express-http-proxy";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { getCurrentUser } from "./controllers/user.controller.js";
-import protect from "./middleware/auth.middleware.js";
-import { proxyWithHeader } from "./utils/proxyWithHeader.js";
 import morgan from "morgan";
+
+import {
+  getCurrentUser,
+} from "./controllers/user.controller.js";
+
+import protect from "./middleware/auth.middleware.js";
+
+import {
+  proxyWithHeader,
+} from "./utils/proxyWithHeader.js";
 
 dotenv.config();
 
@@ -26,8 +33,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests without Origin
-      // (Postman, server-to-server requests, etc.)
+      // Allow Postman and server-to-server requests
       if (!origin) {
         return callback(null, true);
       }
@@ -38,10 +44,13 @@ app.use(
 
       console.log("❌ CORS blocked origin:", origin);
 
-      return callback(new Error("Not allowed by CORS"));
+      return callback(
+        new Error("Not allowed by CORS")
+      );
     },
+
     credentials: true,
-  }),
+  })
 );
 
 // ===============================
@@ -53,13 +62,26 @@ app.use(cookieParser());
 app.use(express.json());
 
 // ===============================
+// TEST ROUTE
+// ===============================
+
+app.get("/", (req, res) => {
+  return res.status(200).json({
+    success: true,
+    message: "Hello, NexusAI Gateway is working!",
+  });
+});
+
+// ===============================
 // HEALTH CHECK
 // ===============================
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
+    success: true,
     status: "ok",
     service: "gateway",
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -69,38 +91,56 @@ app.get("/health", (req, res) => {
 
 app.use(
   "/api/auth",
-  proxy(process.env.AUTH_SERVICE),
+  proxy(process.env.AUTH_SERVICE)
 );
 
 app.use(
   "/api/chat",
   protect,
-  proxyWithHeader(process.env.CHAT_SERVICE),
+  proxyWithHeader(process.env.CHAT_SERVICE)
 );
 
 app.use(
   "/api/agent",
   protect,
-  proxyWithHeader(process.env.AGENT_SERVICE),
+  proxyWithHeader(process.env.AGENT_SERVICE)
 );
 
 app.use(
   "/api/billing",
   protect,
-  proxyWithHeader(process.env.BILLING_SERVICE),
+  proxyWithHeader(process.env.BILLING_SERVICE)
 );
 
 app.get(
   "/api/me",
   protect,
-  getCurrentUser,
+  getCurrentUser
 );
+
+// ===============================
+// 404 HANDLER
+// ===============================
+
+app.use((req, res) => {
+  return res.status(404).json({
+    success: false,
+    message: "Gateway route not found",
+    path: req.originalUrl,
+  });
+});
 
 // ===============================
 // START SERVER
 // ===============================
 
 app.listen(port, () => {
-  console.log(`Gateway is Running on port ${port}`);
-  console.log("Allowed CORS origins:", allowedOrigins);
+  console.log(
+    `Gateway is running on port ${port}`
+  );
+
+  console.log(
+    "Allowed CORS origins:",
+    allowedOrigins
+  );
 });

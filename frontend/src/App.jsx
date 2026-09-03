@@ -1,36 +1,30 @@
-import React, { useEffect } from 'react';
+import { useEffect } from "react";
+import { useDispatch } from "react-redux";
 
-import Home from './pages/Home';
-import getCurrentUser from './features/getCurrentUser';
-
-import { useDispatch } from 'react-redux';
-import { setUserData } from './redux/userSlice';
+import Home from "./pages/Home";
+import getCurrentUser from "./features/getCurrentUser";
+import { setUserData } from "./redux/userSlice";
 
 function App() {
-    const dispatch = useDispatch();
+  const dispatch = useDispatch();
 
-    useEffect(() => {
-        const getUser = async () => {
-            try {
-                const data = await getCurrentUser();
+  useEffect(() => {
+    const getUser = async () => {
+      try {
+        const data = await getCurrentUser();
 
-                if (data) {
-                    dispatch(setUserData(data));
-                }
-            } catch (error) {
-                console.error(
-                    'Failed to get current user:',
-                    error
-                );
-            }
-        };
+        if (data?.user) {
+          dispatch(setUserData(data.user));
+        }
+      } catch (error) {
+        console.error("Failed to get current user:", error);
+      }
+    };
 
-        getUser();
-    }, [dispatch]);
+    getUser();
+  }, [dispatch]);
 
-    return (
-        <Home />
-    );
+  return <Home />;
 }
 
 export default App;

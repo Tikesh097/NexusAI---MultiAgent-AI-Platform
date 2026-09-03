@@ -11,32 +11,41 @@ import { checkAgentLimit } from "../config/agentLimit.js";
 
 export const chatAgent = async (state) => {
   try {
-    // --------------------------------------------------
-    // Check agent rate limit BEFORE calling the LLM
-    // --------------------------------------------------
+    // Validate required state values
+    if (!state.userId) {
+      throw new Error("User ID is required");
+    }
+
+    if (!state.conversationId) {
+      throw new Error("Conversation ID is required");
+    }
+
+    const trimmedPrompt = state.prompt?.trim();
+
+    if (!trimmedPrompt) {
+      throw new Error("Prompt is required");
+    }
+
+    // Check the agent rate limit before calling the LLM
     await checkAgentLimit(state.userId, "chat");
 
-    // --------------------------------------------------
-    // Get chat model
-    // --------------------------------------------------
+    // Get the chat model
     const llm = getModel("chat");
 
-    // --------------------------------------------------
     // Load previous conversation history
-    // --------------------------------------------------
     const history =
-      (await getMemory(state.conversationId)) || [];
+      (await getMemory(
+        state.conversationId,
+        state.userId
+      )) || [];
 
-    // --------------------------------------------------
     // Check whether search results exist
-    // --------------------------------------------------
     const hasSearchResults =
       state.searchResults &&
+      typeof state.searchResults === "object" &&
       Object.keys(state.searchResults).length > 0;
 
-    // --------------------------------------------------
     // Create search context only for search requests
-    // --------------------------------------------------
     const searchContext = hasSearchResults
       ? `
 LIVE WEB SEARCH RESULTS:
@@ -44,6 +53,7 @@ LIVE WEB SEARCH RESULTS:
 ${JSON.stringify(state.searchResults, null, 2)}
 
 Instructions:
+
 - Answer the user's question using the search results.
 - Prefer the newest and most relevant information.
 - Do not invent information that is not present.
@@ -52,15 +62,14 @@ Instructions:
 `
       : "";
 
-    // --------------------------------------------------
     // System prompt
-    // --------------------------------------------------
     const systemPrompt = `
 You are NexusAI, an intelligent AI assistant.
 
 ${searchContext}
 
 General rules:
+
 - Answer naturally and directly.
 - For simple questions, use plain text.
 - For technical or detailed topics, use clean Markdown.
@@ -68,6 +77,7 @@ General rules:
 - Do not generate unnecessarily large responses.
 
 Markdown formatting:
+
 - Use # for a main title only when useful.
 - Use ## for major sections.
 - Leave a blank line after headings.
@@ -77,36 +87,46 @@ Markdown formatting:
 - Never put a heading and its content on the same line.
 `;
 
-    // --------------------------------------------------
-    // Create messages
-    // --------------------------------------------------
-    const messages = [
-      new SystemMessage(systemPrompt),
-    ];
+    // Create the LangChain message array
+    const messages = [new SystemMessage(systemPrompt)];
 
-    // --------------------------------------------------
     // Add previous conversation messages
-    // --------------------------------------------------
-    history.forEach((msg) => {
-      if (msg.role === "user") {
+    history.forEach((message) => {
+      if (!message?.content) {
+        return;
+      }
+
+      if (message.role === "user") {
         messages.push(
-          new HumanMessage(msg.content)
+          new HumanMessage(message.content)
         );
       }
 
-      if (msg.role === "assistant") {
+      if (message.role === "assistant") {
         messages.push(
-          new AIMessage(msg.content)
+          new AIMessage(message.content)
         );
       }
     });
 
-    // --------------------------------------------------
-    // Add current user prompt
-    // --------------------------------------------------
-    messages.push(
-      new HumanMessage(state.prompt)
-    );
+    /*
+     * The controller saves the current user message before invoking
+     * the graph. On a cache miss, that message may already be present
+     * in the history returned by the Chat Service.
+     */
+    const lastMessage = history.at(-1);
+
+    const currentPromptAlreadyExists =
+      lastMessage?.role === "user" &&
+      typeof lastMessage?.content === "string" &&
+      lastMessage.content.trim() === trimmedPrompt;
+
+    // Add the current prompt only when it is not already in history
+    if (!currentPromptAlreadyExists) {
+      messages.push(
+        new HumanMessage(trimmedPrompt)
+      );
+    }
 
     console.log(
       hasSearchResults
@@ -114,19 +134,21 @@ Markdown formatting:
         : "No search results"
     );
 
-    // --------------------------------------------------
-    // Generate AI response
-    // --------------------------------------------------
+    // Generate the AI response
     const response = await llm.invoke(messages);
 
     const aiResponse =
       typeof response?.content === "string"
-        ? response.content
+        ? response.content.trim()
         : JSON.stringify(response?.content || "");
 
-    // --------------------------------------------------
-    // Deduct credits ONLY after successful AI response
-    // --------------------------------------------------
+    if (!aiResponse) {
+      throw new Error(
+        "The AI model returned an empty response"
+      );
+    }
+
+    // Deduct credits only after successful generation
     const creditResult = await deductCredits(
       state.userId,
       "chat"
@@ -144,34 +166,27 @@ Markdown formatting:
       creditResult.credits
     );
 
-    // --------------------------------------------------
-    // Return response + remaining credits
-    // --------------------------------------------------
+    // Return response and remaining credits
     return {
       ...state,
+      prompt: trimmedPrompt,
       aiResponse,
       credits: creditResult.credits,
     };
   } catch (error) {
     console.error("❌ Chat Agent Error:", error);
 
-    // --------------------------------------------------
-    // Extract safe error message
-    // Handles:
-    // error.message
-    // error.error.message
-    // error.error.error.message
-    // --------------------------------------------------
     const errorMessage =
       error?.error?.error?.message ||
       error?.error?.message ||
       error?.message ||
       "Something went wrong while processing your request.";
 
-    // --------------------------------------------------
-    // Rate-limit error
-    // --------------------------------------------------
-    if (error?.status === 429) {
+    // Handle rate-limit errors
+    if (
+      error?.status === 429 ||
+      error?.response?.status === 429
+    ) {
       console.warn(
         "⚠️ CHAT RATE LIMIT:",
         errorMessage
@@ -180,14 +195,11 @@ Markdown formatting:
       return {
         ...state,
         aiResponse: `⚠️ ${errorMessage}`,
-        // Keep existing credits unchanged.
         credits: state.credits,
       };
     }
 
-    // --------------------------------------------------
-    // Credit / other error
-    // --------------------------------------------------
+    // Return a controlled agent error
     return {
       ...state,
       aiResponse: `❌ ${errorMessage}`,
