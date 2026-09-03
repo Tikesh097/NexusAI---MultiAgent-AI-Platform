@@ -28,7 +28,7 @@ function Home() {
                 }
             );
 
-            dispatch(setUserData(data));
+            dispatch(setUserData(data.user));
 
             console.log(
                 'User data stored successfully:',
