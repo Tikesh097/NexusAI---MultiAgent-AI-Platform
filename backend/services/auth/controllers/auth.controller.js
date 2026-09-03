@@ -41,12 +41,13 @@ export const login = async (req, res) => {
       7 * 24 * 60 * 60,
     ); // Set expiration to 7 days
 
-    res.cookie("session", sessionId, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+   res.cookie("session", sessionId, {
+     httpOnly: true,
+     secure: true,
+     sameSite: "none",
+     path: "/",
+     maxAge: 7 * 24 * 60 * 60 * 1000,
+   });
 
     return res.status(200).json({
       message: "Login successful",
@@ -64,7 +65,12 @@ export const logout = async (req, res) => {
   try {
     const sessionId = req.cookies?.session;
     await redis.del(`session:${sessionId}`);
-    res.clearCookie("session");
+    res.clearCookie("session", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    });
     return res.status(200).json({
       message: "Logout successful",
     });
